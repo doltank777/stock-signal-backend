@@ -1,5 +1,6 @@
 package com.stockapp.domain.user;
 
+import com.stockapp.global.security.JwtTokenProvider;
 import com.stockapp.global.util.CryptoUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -14,6 +15,7 @@ public class AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final CryptoUtil cryptoUtil;
+    private final JwtTokenProvider jwtTokenProvider;
 
     public UserResponse register(RegisterRequest request) {
         if (userRepository.existsByEmail(request.getEmail())) {
@@ -32,4 +34,23 @@ public class AuthService {
 
         return UserResponse.from(savedUser);
     }
+    public LoginResponse login(LoginRequest request) {
+        User user = userRepository.findByEmail(request.getEmail())
+                .orElseThrow(() -> new IllegalArgumentException("이메일 또는 비밀번호가 올바르지 않습니다."));
+
+        if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+            throw new IllegalArgumentException("이메일 또는 비밀번호가 올바르지 않습니다.");
+        }
+
+        String accessToken = jwtTokenProvider.createAccessToken(user);
+
+        return LoginResponse.builder()
+                .accessToken(accessToken)
+                .tokenType("Bearer")
+                .userId(user.getId())
+                .email(user.getEmail())
+                .nickname(user.getNickname())
+                .build();
+    }
+
 }
