@@ -20,4 +20,10 @@ public class StockPriceController {
     public StockPriceResponse getLatestPrice(@PathVariable String stockCode) {
         return stockPriceService.getLatestPrice(stockCode);
     }
+
+    @PostMapping("/kis/{stockCode}")
+    public StockPriceResponse saveCurrentPriceFromKis(@PathVariable String stockCode) {
+        return stockPriceService.saveCurrentPriceFromKis(stockCode);
+    }
+
 }
