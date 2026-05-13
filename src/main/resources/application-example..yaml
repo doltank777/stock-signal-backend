@@ -13,3 +13,7 @@ jwt:
 app:
   crypto:
     secret-key: YOUR_AES_SECRET_KEY
+
+kis:
+  app-key: YOUR_APP_KEY
+  app-secret: YOUR_APP_SECRET
