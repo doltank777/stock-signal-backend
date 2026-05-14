@@ -1,5 +1,6 @@
 package com.stockapp.domain.stock;
 
+import com.stockapp.domain.signal.SignalService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -14,6 +15,7 @@ public class StockPriceScheduler {
 
     private final StockRepository stockRepository;
     private final StockPriceService stockPriceService;
+    private final SignalService signalService;
 
     // 1분마다 실행
     @Scheduled(fixedDelay = 60000)
@@ -31,6 +33,9 @@ public class StockPriceScheduler {
         for (Stock stock : stocks) {
             try {
                 stockPriceService.saveCurrentPriceFromKis(stock.getStockCode());
+
+                signalService.analyzeVolumeSpike(stock);
+
                 log.info("현재가 저장 성공 - {}", stock.getStockCode());
 
                 Thread.sleep(1200);
