@@ -1,5 +1,6 @@
 package com.stockapp.domain.signal;
 
+import com.stockapp.domain.signal.dto.SignalResponse;
 import com.stockapp.domain.stock.Stock;
 import com.stockapp.domain.stock.StockPrice;
 import com.stockapp.domain.stock.StockPriceRepository;
@@ -10,10 +11,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 
-import com.stockapp.domain.signal.dto.SignalResponse;
-
-
-
 @Service
 @RequiredArgsConstructor
 public class SignalService {
@@ -21,8 +18,9 @@ public class SignalService {
     private final StockPriceRepository stockPriceRepository;
     private final SignalRepository signalRepository;
 
-    private static final double VOLUME_SPIKE_RATE = 2.0; // 평균 거래량의 2배 이상
-    private static final int RECENT_PRICE_LIMIT = 5;     // 최근 5개 데이터 기준
+    private static final double VOLUME_SPIKE_RATE = 2.0;
+    private static final int RECENT_PRICE_LIMIT = 5;
+    private static final int MOVING_AVERAGE_LIMIT = 6;
     private static final int DUPLICATE_CHECK_MINUTES = 30;
 
     @Transactional
@@ -36,7 +34,6 @@ public class SignalService {
         }
 
         StockPrice latestPrice = prices.get(0);
-
         long currentVolume = latestPrice.getVolume();
 
         double averageVolume = prices.stream()
@@ -75,11 +72,61 @@ public class SignalService {
         signalRepository.save(signal);
     }
 
+    @Transactional
+    public void analyzeMovingAverageBreakout(Stock stock) {
 
+        List<StockPrice> prices =
+                stockPriceRepository.findTop6ByStockCodeOrderByCollectedAtDesc(stock.getStockCode());
+
+        if (prices.size() < MOVING_AVERAGE_LIMIT) {
+            return;
+        }
+
+        StockPrice latestPrice = prices.get(0);
+        long currentPrice = latestPrice.getCurrentPrice();
+
+        double averagePrice = prices.stream()
+                .skip(1)
+                .mapToLong(StockPrice::getCurrentPrice)
+                .average()
+                .orElse(0);
+
+        if (averagePrice <= 0) {
+            return;
+        }
+
+        boolean isBreakout = currentPrice > averagePrice;
+
+        if (!isBreakout) {
+            return;
+        }
+
+        double changeRate = currentPrice / averagePrice;
+
+        boolean alreadyExists = signalRepository.existsByStockAndSignalTypeAndDetectedAtAfter(
+                stock,
+                SignalType.MOVING_AVERAGE_BREAKOUT,
+                LocalDateTime.now().minusMinutes(DUPLICATE_CHECK_MINUTES)
+        );
+
+        if (alreadyExists) {
+            return;
+        }
+
+        Signal signal = Signal.createMovingAverageBreakout(
+                stock,
+                (long) averagePrice,
+                currentPrice,
+                changeRate
+        );
+
+        signalRepository.save(signal);
+    }
 
     public List<SignalResponse> getSignals() {
-        return signalRepository.findTop50ByOrderByDetectedAtDesc()
+        return signalRepository.findAllWithStockOrderByDetectedAtDesc()
                 .stream()
+                .limit(50)
                 .map(SignalResponse::from)
                 .toList();
     }
