@@ -10,6 +10,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import com.stockapp.domain.signal.dto.SignalResponse;
+
+
+
 @Service
 @RequiredArgsConstructor
 public class SignalService {
@@ -69,5 +73,14 @@ public class SignalService {
         );
 
         signalRepository.save(signal);
+    }
+
+
+
+    public List<SignalResponse> getSignals() {
+        return signalRepository.findTop50ByOrderByDetectedAtDesc()
+                .stream()
+                .map(SignalResponse::from)
+                .toList();
     }
 }
