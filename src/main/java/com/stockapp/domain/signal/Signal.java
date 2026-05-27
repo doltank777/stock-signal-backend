@@ -77,4 +77,20 @@ public class Signal {
                 changeRate
         );
     }
+
+    public static Signal createMovingAverageBreakout(
+            Stock stock,
+            Long averagePrice,
+            Long currentPrice,
+            Double changeRate
+    ) {
+        return new Signal(
+                stock,
+                SignalType.MOVING_AVERAGE_BREAKOUT,
+                "이동평균 돌파 신호 발생",
+                averagePrice,
+                currentPrice,
+                changeRate
+        );
+    }
 }

@@ -10,4 +10,6 @@ public interface StockPriceRepository extends JpaRepository<StockPrice, Long> {
     Optional<StockPrice> findTopByStockCodeOrderByCollectedAtDesc(String stockCode);
 
     List<StockPrice> findTop5ByStockCodeOrderByCollectedAtDesc(String stockCode);
+
+    List<StockPrice> findTop6ByStockCodeOrderByCollectedAtDesc(String stockCode);
 }

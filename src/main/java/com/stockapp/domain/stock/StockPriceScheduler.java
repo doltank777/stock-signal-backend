@@ -36,6 +36,9 @@ public class StockPriceScheduler {
 
                 signalService.analyzeVolumeSpike(stock);
 
+                // 이동평균 돌파 Signal 분석
+                signalService.analyzeMovingAverageBreakout(stock);
+
                 log.info("현재가 저장 성공 - {}", stock.getStockCode());
 
                 Thread.sleep(1200);
