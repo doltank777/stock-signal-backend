@@ -40,3 +40,6 @@ out/
 /src/main/resources/application-prod.yaml
 
 .env
+
+DB_SPEC.md
+
