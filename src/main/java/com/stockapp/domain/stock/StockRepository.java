@@ -11,5 +11,9 @@ public interface StockRepository extends JpaRepository<Stock, Long> {
 
     boolean existsByStockCode(String stockCode);
 
-    List<Stock> findByStockNameContaining(String keyword);
+    List<Stock> findByStockNameContainingOrStockCodeContaining(
+            String stockName,
+            String stockCode
+    );
+
 }

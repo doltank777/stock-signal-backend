@@ -14,7 +14,8 @@ public class StockService {
     private final StockRepository stockRepository;
 
     public List<StockResponse> searchStocks(String keyword) {
-        return stockRepository.findByStockNameContaining(keyword)
+        return stockRepository
+                .findByStockNameContainingOrStockCodeContaining(keyword, keyword)
                 .stream()
                 .map(StockResponse::from)
                 .toList();
