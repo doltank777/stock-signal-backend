@@ -24,4 +24,12 @@ public class Stock {
     @Enumerated(EnumType.STRING)
     @Column(name = "market_type", nullable = false, length = 20)
     private MarketType marketType;
+
+    public void updateStockInfo(
+            String stockName,
+            MarketType marketType
+    ) {
+        this.stockName = stockName;
+        this.marketType = marketType;
+    }
 }

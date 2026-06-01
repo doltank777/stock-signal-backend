@@ -17,3 +17,6 @@ app:
 kis:
   app-key: YOUR_APP_KEY
   app-secret: YOUR_APP_SECRET
+
+stock:
+  import-key: "your-import-key"
