@@ -233,16 +233,27 @@ GET /api/signals
 ## 🚀 현재 구현 상태
 
 ✔ Spring Boot 프로젝트 구성
+
 ✔ MySQL / Redis 연동
+
 ✔ JWT 인증 (회원가입 / 로그인 / /me)
+
 ✔ 전화번호 AES 암호화 저장
+
 ✔ KIS API 연동 (토큰 발급 + 현재가 조회)
+
 ✔ 현재가 DB 저장 API 구현
+
 ✔ 최신 현재가 조회 API
+
 ✔ Scheduler 자동 수집
+
 ✔ 거래량 급증 Signal 분석
+
 ✔ 이동평균 돌파 Signal 분석
+
 ✔ Signal 중복 생성 방지
+
 ✔ 추천 Signal 조회 API
 
 ---
