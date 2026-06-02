@@ -11,6 +11,7 @@ import java.util.List;
 public class StockController {
 
     private final StockService stockService;
+    private final StockPriceService stockPriceService;
 
     @GetMapping("/search")
     public List<StockResponse> searchStocks(@RequestParam String keyword) {
@@ -20,5 +21,10 @@ public class StockController {
     @GetMapping("/{stockCode}")
     public StockResponse getStock(@PathVariable String stockCode) {
         return stockService.getStock(stockCode);
+    }
+
+    @GetMapping("/{stockCode}/price/latest")
+    public StockPriceResponse getLatestPrice(@PathVariable String stockCode) {
+        return stockPriceService.getLatestPrice(stockCode);
     }
 }
