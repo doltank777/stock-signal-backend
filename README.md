@@ -16,7 +16,7 @@
 ### 🔐 인증
 
 * 회원가입 / 로그인 (JWT 기반)
-* 현재 사용자 조회 (/me)
+* 현재 사용자 조회 (/api/auth/me)
 * 전화번호 AES 암호화 저장
 
 ### 📊 주식 데이터
@@ -25,12 +25,20 @@
 * 종목 상세 조회 API
 * 현재가 저장 API
 * 최신 현재가 조회 API
+* KIND 상장법인 목록 Import
+* KOSPI / KOSDAQ / KONEX 지원
+
+### ⭐ 관심종목
+
+* 관심종목 추가
+* 관심종목 삭제
+* 관심종목 목록 조회
 
 ### 🔗 외부 API 연동
 
 * 한국투자증권(KIS) Open API 연동
 * 실시간 현재가 조회
-* Access Token Redis 캐싱
+* KIS Access Token Redis 캐싱
 
 ### ⏰ 자동 수집 Scheduler
 
@@ -227,6 +235,38 @@ GET /api/signals
   }
 ]
 ```
+### 🔹 최신 현재가 조회
+
+GET /api/stocks/{stockCode}/price/latest
+
+예시
+
+GET /api/stocks/005930/price/latest
+
+```JSON
+{
+  "id": 4268,
+  "stockCode": "005930",
+  "currentPrice": 360500,
+  "changeRate": 3.3,
+  "volume": 44720282,
+  "tradeDate": "2026-06-02",
+  "collectedAt": "2026-06-02T21:30:53"
+}
+```
+### 🔹 관심종목
+
+관심종목 추가
+
+POST /api/favorites/{stockCode}
+
+관심종목 목록
+
+GET /api/favorites
+
+관심종목 삭제
+
+DELETE /api/favorites/{stockCode}
 
 ---
 
@@ -256,21 +296,29 @@ GET /api/signals
 
 ✔ 추천 Signal 조회 API
 
+✔ 종목 마스터 데이터 Import
+
+✔ 종목 검색 API
+
+✔ 종목 상세 API
+
+✔ 최신 현재가 조회 API
+
+✔ 관심종목 추가
+
+✔ 관심종목 삭제
+
+✔ 관심종목 목록 조회
+
+✔ 내 정보 조회 API
 ---
 
 ## 🔜 향후 개발 계획
 
-* 관심 종목 기능
 * Firebase FCM 푸시 알림
-* React Native 앱 연동
+* 관심종목 알림
 * 관리자 페이지
-* Signal 고도화
-
-  * RSI
-  * MACD
-  * 볼린저 밴드
-  * 골든크로스
-
+* 
 ---
 
 ## 🧑‍💻 개발자
