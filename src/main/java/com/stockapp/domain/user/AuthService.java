@@ -53,4 +53,11 @@ public class AuthService {
                 .build();
     }
 
+    @Transactional(readOnly = true)
+    public UserInfoResponse getMyInfo(String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
+
+        return UserInfoResponse.from(user);
+    }
 }

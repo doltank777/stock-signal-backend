@@ -3,7 +3,6 @@ package com.stockapp.domain.user;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
-import com.stockapp.global.security.CustomUserDetails;
 import org.springframework.security.core.Authentication;
 
 @RestController
@@ -24,10 +23,8 @@ public class AuthController {
     }
 
     @GetMapping("/me")
-    public String me(Authentication authentication) {
-        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
-
-        return "현재 로그인 사용자: " + userDetails.getEmail();
+    public UserInfoResponse me(Authentication authentication) {
+        return authService.getMyInfo(authentication.getName());
     }
 
 
