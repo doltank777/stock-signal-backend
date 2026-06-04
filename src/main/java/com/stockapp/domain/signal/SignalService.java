@@ -1,5 +1,8 @@
 package com.stockapp.domain.signal;
 
+import com.stockapp.domain.notification.ExpoPushService;
+import com.stockapp.domain.notification.NotificationToken;
+import com.stockapp.domain.notification.NotificationTokenRepository;
 import com.stockapp.domain.signal.dto.SignalResponse;
 import com.stockapp.domain.stock.Stock;
 import com.stockapp.domain.stock.StockPrice;
@@ -17,6 +20,8 @@ public class SignalService {
 
     private final StockPriceRepository stockPriceRepository;
     private final SignalRepository signalRepository;
+    private final NotificationTokenRepository notificationTokenRepository;
+    private final ExpoPushService expoPushService;
 
     private static final double VOLUME_SPIKE_RATE = 2.0;
     private static final int RECENT_PRICE_LIMIT = 5;
@@ -25,15 +30,13 @@ public class SignalService {
 
     @Transactional
     public void analyzeVolumeSpike(Stock stock) {
-
-        List<StockPrice> prices =
-                stockPriceRepository.findTop5ByStockCodeOrderByCollectedAtDesc(stock.getStockCode());
+        List<StockPrice> prices = stockPriceRepository.findTop5ByStockCodeOrderByCollectedAtDesc(stock.getStockCode());
 
         if (prices.size() < RECENT_PRICE_LIMIT) {
             return;
         }
 
-        StockPrice latestPrice = prices.get(0);
+        StockPrice latestPrice = prices.getFirst();
         long currentVolume = latestPrice.getVolume();
 
         double averageVolume = prices.stream()
@@ -70,19 +73,18 @@ public class SignalService {
         );
 
         signalRepository.save(signal);
+        sendSignalPush(signal);
     }
 
     @Transactional
     public void analyzeMovingAverageBreakout(Stock stock) {
-
-        List<StockPrice> prices =
-                stockPriceRepository.findTop6ByStockCodeOrderByCollectedAtDesc(stock.getStockCode());
+        List<StockPrice> prices = stockPriceRepository.findTop6ByStockCodeOrderByCollectedAtDesc(stock.getStockCode());
 
         if (prices.size() < MOVING_AVERAGE_LIMIT) {
             return;
         }
 
-        StockPrice latestPrice = prices.get(0);
+        StockPrice latestPrice = prices.getFirst();
         long currentPrice = latestPrice.getCurrentPrice();
 
         double averagePrice = prices.stream()
@@ -121,6 +123,7 @@ public class SignalService {
         );
 
         signalRepository.save(signal);
+        sendSignalPush(signal);
     }
 
     public List<SignalResponse> getSignals() {
@@ -129,5 +132,15 @@ public class SignalService {
                 .limit(50)
                 .map(SignalResponse::from)
                 .toList();
+    }
+
+    private void sendSignalPush(Signal signal) {
+        String title = "Stock Signal";
+        String body = signal.getStock().getStockName() + " - " + signal.getMessage();
+
+        notificationTokenRepository.findAll()
+                .stream()
+                .map(NotificationToken::getToken)
+                .forEach(token -> expoPushService.sendPush(token, title, body));
     }
 }
