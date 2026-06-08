@@ -11,6 +11,8 @@ public interface FavoriteRepository extends JpaRepository<Favorite, Long> {
 
     List<Favorite> findByUserOrderByCreatedAtDesc(User user);
 
+    List<Favorite> findByStock(Stock stock);
+
     Optional<Favorite> findByUserAndStock(User user, Stock stock);
 
     boolean existsByUserAndStock(User user, Stock stock);
