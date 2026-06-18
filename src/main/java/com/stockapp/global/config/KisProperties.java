@@ -10,6 +10,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class KisProperties {
 
     private String baseUrl;
+    private String webSocketUrl;
     private String appKey;
     private String appSecret;
 }
