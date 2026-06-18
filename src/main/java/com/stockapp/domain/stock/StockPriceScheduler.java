@@ -25,43 +25,29 @@ public class StockPriceScheduler {
     private static final LocalTime MARKET_OPEN_TIME = LocalTime.of(9, 0);
     private static final LocalTime MARKET_CLOSE_TIME = LocalTime.of(15, 30);
 
-    // 1분마다 실행
-    @Scheduled(fixedDelay = 60000)
+    // 1시간마다 실행
+    @Scheduled(fixedDelay = 60 * 60 * 1000)
     public void collectStockPrices() {
         if (!isMarketOpen()) {
             log.info("주식시장 운영 시간이 아니므로 현재가 수집을 건너뜁니다.");
             return;
         }
 
-        // 전체 종목
-        // List<Stock> stocks = stockRepository.findAll();
-        // 테스트용 종목 제한 5종목
-        List<Stock> stocks = stockRepository.findAll()
-                .stream()
-                .limit(5)
-                .toList();
+        List<Stock> stocks = stockRepository.findAll();
 
-        log.info("주식 현재가 자동 수집 시작 - 대상 종목 수: {}", stocks.size());
+        log.info("주식 현재가 보조 수집 시작 - 대상 종목 수: {}", stocks.size());
 
         for (Stock stock : stocks) {
             try {
                 stockPriceService.saveCurrentPriceFromKis(stock.getStockCode());
-
-                signalService.analyzeVolumeSpike(stock);
-
-                // 이동평균 돌파 Signal 분석
-                signalService.analyzeMovingAverageBreakout(stock);
-
                 log.info("현재가 저장 성공 - {}", stock.getStockCode());
-
                 Thread.sleep(1200);
-
             } catch (Exception e) {
                 log.error("현재가 저장 실패 - {}", stock.getStockCode(), e);
             }
         }
 
-        log.info("주식 현재가 자동 수집 완료");
+        log.info("주식 현재가 보조 수집 완료");
     }
 
     private boolean isMarketOpen() {
