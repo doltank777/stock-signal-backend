@@ -6,6 +6,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.time.DayOfWeek;
+import java.time.LocalTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.List;
 
 @Slf4j
@@ -17,9 +21,18 @@ public class StockPriceScheduler {
     private final StockPriceService stockPriceService;
     private final SignalService signalService;
 
+    private static final ZoneId KOREA_ZONE = ZoneId.of("Asia/Seoul");
+    private static final LocalTime MARKET_OPEN_TIME = LocalTime.of(9, 0);
+    private static final LocalTime MARKET_CLOSE_TIME = LocalTime.of(15, 30);
+
     // 1분마다 실행
     @Scheduled(fixedDelay = 60000)
     public void collectStockPrices() {
+        if (!isMarketOpen()) {
+            log.info("주식시장 운영 시간이 아니므로 현재가 수집을 건너뜁니다.");
+            return;
+        }
+
         // 전체 종목
         // List<Stock> stocks = stockRepository.findAll();
         // 테스트용 종목 제한 5종목
@@ -49,5 +62,20 @@ public class StockPriceScheduler {
         }
 
         log.info("주식 현재가 자동 수집 완료");
+    }
+
+    private boolean isMarketOpen() {
+        ZonedDateTime now = ZonedDateTime.now(KOREA_ZONE);
+
+        DayOfWeek dayOfWeek = now.getDayOfWeek();
+        LocalTime currentTime = now.toLocalTime();
+
+        boolean isWeekday = dayOfWeek != DayOfWeek.SATURDAY
+                && dayOfWeek != DayOfWeek.SUNDAY;
+
+        boolean isMarketTime = !currentTime.isBefore(MARKET_OPEN_TIME)
+                && !currentTime.isAfter(MARKET_CLOSE_TIME);
+
+        return isWeekday && isMarketTime;
     }
 }
