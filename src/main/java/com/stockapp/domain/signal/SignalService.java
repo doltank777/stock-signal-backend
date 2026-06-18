@@ -1,7 +1,5 @@
 package com.stockapp.domain.signal;
 
-import com.stockapp.domain.favorite.Favorite;
-import com.stockapp.domain.favorite.FavoriteRepository;
 import com.stockapp.domain.notification.ExpoPushService;
 import com.stockapp.domain.notification.NotificationToken;
 import com.stockapp.domain.notification.NotificationTokenRepository;
@@ -24,7 +22,6 @@ public class SignalService {
     private final SignalRepository signalRepository;
     private final NotificationTokenRepository notificationTokenRepository;
     private final ExpoPushService expoPushService;
-    private final FavoriteRepository favoriteRepository;
 
     private static final double VOLUME_SPIKE_RATE = 2.0;
     private static final int RECENT_PRICE_LIMIT = 5;
@@ -76,7 +73,7 @@ public class SignalService {
         );
 
         signalRepository.save(signal);
-        sendSignalPush(signal);
+        sendSignalPushToAllUsers(signal);
     }
 
     @Transactional
@@ -126,7 +123,7 @@ public class SignalService {
         );
 
         signalRepository.save(signal);
-        sendSignalPush(signal);
+        sendSignalPushToAllUsers(signal);
     }
 
     public List<SignalResponse> getSignals() {
@@ -137,30 +134,18 @@ public class SignalService {
                 .toList();
     }
 
-
-    private void sendSignalPush(Signal signal) {
-
+    private void sendSignalPushToAllUsers(Signal signal) {
         String title = "Stock Signal";
         String body = signal.getStock().getStockName() + " - " + signal.getMessage();
 
-        List<Favorite> favorites =
-                favoriteRepository.findByStock(signal.getStock());
+        List<NotificationToken> tokens = notificationTokenRepository.findAll();
 
-        favorites.stream()
-                .map(Favorite::getUser)
-                .distinct()
-                .forEach(user -> {
-
-                    List<NotificationToken> tokens =
-                            notificationTokenRepository.findByUser(user);
-
-                    tokens.forEach(notificationToken ->
-                            expoPushService.sendPush(
-                                    notificationToken.getToken(),
-                                    title,
-                                    body
-                            )
-                    );
-                });
+        tokens.forEach(notificationToken ->
+                expoPushService.sendPush(
+                        notificationToken.getToken(),
+                        title,
+                        body
+                )
+        );
     }
 }
