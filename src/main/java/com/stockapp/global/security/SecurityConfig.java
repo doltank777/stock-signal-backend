@@ -30,6 +30,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/register", "/api/auth/login").permitAll()
                         .requestMatchers("/api/admin/stocks/import").permitAll()
                         .requestMatchers("/api/kis/websocket/**").permitAll()
+                        .requestMatchers("/api/mock/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(
