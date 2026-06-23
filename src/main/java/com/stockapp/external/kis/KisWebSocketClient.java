@@ -22,6 +22,7 @@ public class KisWebSocketClient {
 
     private final KisProperties kisProperties;
     private final KisWebSocketApprovalClient kisWebSocketApprovalClient;
+    private final KisWebSocketHandler kisWebSocketHandler;
 
     public void connectAndSubscribe(String stockCode) {
         try {
@@ -31,7 +32,7 @@ public class KisWebSocketClient {
 
             WebSocketSession session = webSocketClient
                     .execute(
-                            new KisWebSocketHandler(),
+                            kisWebSocketHandler,
                             null,
                             URI.create(kisProperties.getWebSocketUrl())
                     )
