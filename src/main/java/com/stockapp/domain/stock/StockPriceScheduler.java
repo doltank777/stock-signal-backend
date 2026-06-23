@@ -26,7 +26,7 @@ public class StockPriceScheduler {
     private static final LocalTime MARKET_CLOSE_TIME = LocalTime.of(15, 30);
 
     // 1시간마다 실행
-    @Scheduled(cron = "0 0 9-15 * * MON-FRI", zone = "Asia/Seoul")
+    @Scheduled(cron = "0 0 9-16 * * MON-FRI", zone = "Asia/Seoul")
     public void collectStockPrices() {
         if (!isMarketOpen()) {
             log.info("주식시장 운영 시간이 아니므로 현재가 수집을 건너뜁니다.");
