@@ -32,7 +32,7 @@ public class RealtimeSignalService {
 
     @Transactional
     public void analyzeVolumeSpike(KisRealtimeTradePrice tradePrice) {
-        log.info(
+        log.debug(
                 "실시간 거래량 분석 시작 - stockCode: {}, accumulatedVolume: {}",
                 tradePrice.getStockCode(),
                 tradePrice.getAccumulatedVolume()
@@ -42,7 +42,7 @@ public class RealtimeSignalService {
                 stockPriceRepository.findTop5ByStockCodeOrderByCollectedAtDesc(tradePrice.getStockCode());
 
         if (prices.size() < 5) {
-            log.info(
+            log.debug(
                     "실시간 거래량 분석 중단 - 최근 가격 데이터 부족, stockCode: {}, count: {}",
                     tradePrice.getStockCode(),
                     prices.size()
@@ -67,14 +67,14 @@ public class RealtimeSignalService {
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 종목코드입니다: " + tradePrice.getStockCode()));
 
         if (averageVolume <= 0) {
-            log.info("실시간 거래량 분석 중단 - 평균 거래량 0 이하, stockCode: {}", tradePrice.getStockCode());
+            log.debug("실시간 거래량 분석 중단 - 평균 거래량 0 이하, stockCode: {}", tradePrice.getStockCode());
             return;
         }
 
         long currentVolume = tradePrice.getAccumulatedVolume();
         double changeRate = (double) currentVolume / averageVolume;
 
-        log.info(
+        log.debug(
                 "실시간 거래량 분석 결과 - stockCode: {}, averageVolume: {}, currentVolume: {}, changeRate: {}",
                 stock.getStockCode(),
                 averageVolume,
@@ -93,7 +93,7 @@ public class RealtimeSignalService {
         );
 
         if (alreadyExists) {
-            log.info("실시간 Signal 생성 중단 - 최근 30분 내 중복 Signal 존재, stockCode: {}", stock.getStockCode());
+            log.debug("실시간 Signal 생성 중단 - 최근 30분 내 중복 Signal 존재, stockCode: {}", stock.getStockCode());
             return;
         }
 

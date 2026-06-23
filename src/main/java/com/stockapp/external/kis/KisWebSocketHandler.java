@@ -49,7 +49,7 @@ public class KisWebSocketHandler extends TextWebSocketHandler {
         try {
             KisRealtimeTradePrice tradePrice = kisRealtimeTradeParser.parse(payload);
 
-            log.info(
+            log.debug(
                     "KIS 실시간 체결 수신 - stockCode: {}, currentPrice: {}, accumulatedVolume: {}, tradeDateTime: {}",
                     tradePrice.getStockCode(),
                     tradePrice.getCurrentPrice(),
