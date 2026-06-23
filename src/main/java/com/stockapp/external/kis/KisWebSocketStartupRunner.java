@@ -24,7 +24,7 @@ public class KisWebSocketStartupRunner implements ApplicationRunner {
     public void run(ApplicationArguments args) {
         List<String> stockCodes = stockRepository.findAll()
                 .stream()
-                .limit(5)
+                .limit(40)
                 .map(Stock::getStockCode)
                 .toList();
 
