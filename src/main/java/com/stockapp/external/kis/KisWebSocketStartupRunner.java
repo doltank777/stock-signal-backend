@@ -22,16 +22,15 @@ public class KisWebSocketStartupRunner implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
-        List<Stock> stocks = stockRepository.findAll()
+        List<String> stockCodes = stockRepository.findAll()
                 .stream()
                 .limit(5)
+                .map(Stock::getStockCode)
                 .toList();
 
-        log.info("KIS WebSocket 자동 구독 시작 - 대상 종목 수: {}", stocks.size());
+        log.info("KIS WebSocket 자동 구독 시작 - 대상 종목 수: {}", stockCodes.size());
 
-        stocks.forEach(stock ->
-                kisWebSocketClient.connectAndSubscribe(stock.getStockCode())
-        );
+        kisWebSocketClient.connectAndSubscribe(stockCodes);
 
         log.info("KIS WebSocket 자동 구독 요청 완료");
     }

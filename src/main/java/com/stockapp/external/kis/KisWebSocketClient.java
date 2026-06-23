@@ -9,6 +9,7 @@ import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.client.standard.StandardWebSocketClient;
 
 import java.net.URI;
+import java.util.List;
 
 @Slf4j
 @Component
@@ -24,7 +25,7 @@ public class KisWebSocketClient {
     private final KisWebSocketApprovalClient kisWebSocketApprovalClient;
     private final KisWebSocketHandler kisWebSocketHandler;
 
-    public void connectAndSubscribe(String stockCode) {
+    public void connectAndSubscribe(List<String> stockCodes) {
         try {
             String approvalKey = kisWebSocketApprovalClient.getApprovalKey();
 
@@ -38,15 +39,24 @@ public class KisWebSocketClient {
                     )
                     .get();
 
-            String subscribeMessage = createSubscribeMessage(approvalKey, stockCode);
+            log.info("KIS WebSocket 단일 세션 연결 완료 - 구독 대상 종목 수: {}", stockCodes.size());
 
-            session.sendMessage(new TextMessage(subscribeMessage));
+            for (String stockCode : stockCodes) {
+                String subscribeMessage = createSubscribeMessage(approvalKey, stockCode);
+                session.sendMessage(new TextMessage(subscribeMessage));
 
-            log.info("KIS WebSocket 구독 요청 완료 - stockCode: {}", stockCode);
+                log.info("KIS WebSocket 구독 요청 완료 - stockCode: {}", stockCode);
+
+                Thread.sleep(300);
+            }
 
         } catch (Exception e) {
-            log.error("KIS WebSocket 연결 또는 구독 실패 - stockCode: {}", stockCode, e);
+            log.error("KIS WebSocket 연결 또는 다중 구독 실패", e);
         }
+    }
+
+    public void connectAndSubscribe(String stockCode) {
+        connectAndSubscribe(List.of(stockCode));
     }
 
     private String createSubscribeMessage(String approvalKey, String stockCode) {
