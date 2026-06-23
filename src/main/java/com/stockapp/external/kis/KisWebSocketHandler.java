@@ -18,8 +18,6 @@ public class KisWebSocketHandler extends TextWebSocketHandler {
     private final KisRealtimeTradeParser kisRealtimeTradeParser;
     private final RealtimeSignalService realtimeSignalService;
 
-    private static final long TEMP_AVERAGE_VOLUME = 1_000_000L;
-
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
         log.info("KIS WebSocket 연결 성공 - sessionId: {}", session.getId());
@@ -59,10 +57,7 @@ public class KisWebSocketHandler extends TextWebSocketHandler {
                     tradePrice.getTradeDateTime()
             );
 
-            realtimeSignalService.analyzeVolumeSpike(
-                    tradePrice,
-                    TEMP_AVERAGE_VOLUME
-            );
+            realtimeSignalService.analyzeVolumeSpike(tradePrice);
 
         } catch (Exception e) {
             log.error("KIS 실시간 체결 메시지 처리 실패 - payload: {}", payload, e);

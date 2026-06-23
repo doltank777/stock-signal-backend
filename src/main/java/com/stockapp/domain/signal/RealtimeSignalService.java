@@ -10,6 +10,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.stockapp.domain.stock.StockPrice;
+import com.stockapp.domain.stock.StockPriceRepository;
+
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -24,6 +27,8 @@ public class RealtimeSignalService {
 
     private static final double VOLUME_SPIKE_RATE = 2.0;
     private static final int DUPLICATE_CHECK_MINUTES = 30;
+
+    private final StockPriceRepository stockPriceRepository;
 
     @Transactional
     public void analyzeVolumeSpike(
@@ -78,5 +83,22 @@ public class RealtimeSignalService {
                         body
                 )
         );
+    }
+
+    @Transactional
+    public void analyzeVolumeSpike(KisRealtimeTradePrice tradePrice) {
+        List<StockPrice> prices =
+                stockPriceRepository.findTop5ByStockCodeOrderByCollectedAtDesc(tradePrice.getStockCode());
+
+        if (prices.size() < 5) {
+            return;
+        }
+
+        double averageVolume = prices.stream()
+                .mapToLong(StockPrice::getVolume)
+                .average()
+                .orElse(0);
+
+        analyzeVolumeSpike(tradePrice, (long) averageVolume);
     }
 }
