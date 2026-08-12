@@ -20,12 +20,18 @@ public class KisWebSocketClient {
     private static final String CUSTOMER_TYPE_PERSONAL = "P";
     private static final String TRANSACTION_TYPE_SUBSCRIBE = "1";
     private static final String CONTENT_TYPE_UTF8 = "utf-8";
+    private static final long SUBSCRIBE_INTERVAL_MILLIS = 300L;
 
     private final KisProperties kisProperties;
     private final KisWebSocketApprovalClient kisWebSocketApprovalClient;
     private final KisWebSocketHandler kisWebSocketHandler;
 
     public void connectAndSubscribe(List<String> stockCodes) {
+        if (stockCodes == null || stockCodes.isEmpty()) {
+            log.warn("KIS WebSocket 구독 대상 종목이 없습니다.");
+            return;
+        }
+
         try {
             String approvalKey = kisWebSocketApprovalClient.getApprovalKey();
 
@@ -39,7 +45,7 @@ public class KisWebSocketClient {
                     )
                     .get();
 
-            log.info("KIS WebSocket 단일 세션 연결 완료 - 구독 대상 종목 수: {}", stockCodes.size());
+            log.info("KIS WebSocket 세션 연결 완료 - 구독 대상 종목 수: {}", stockCodes.size());
 
             for (String stockCode : stockCodes) {
                 String subscribeMessage = createSubscribeMessage(approvalKey, stockCode);
@@ -47,11 +53,11 @@ public class KisWebSocketClient {
 
                 log.info("KIS WebSocket 구독 요청 완료 - stockCode: {}", stockCode);
 
-                Thread.sleep(300);
+                Thread.sleep(SUBSCRIBE_INTERVAL_MILLIS);
             }
 
         } catch (Exception e) {
-            log.error("KIS WebSocket 연결 또는 다중 구독 실패", e);
+            log.error("KIS WebSocket 연결 또는 구독 실패 - 대상 종목 수: {}", stockCodes.size(), e);
         }
     }
 
