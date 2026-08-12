@@ -103,6 +103,10 @@ public class SearchCondition {
         this.realtimeEnabled = realtimeEnabled;
     }
 
+    public void changeEnabled(boolean enabled) {
+        this.enabled = enabled;
+    }
+
     public void addRule(SearchConditionRule rule) {
         rule.assignSearchCondition(this);
         this.rules.add(rule);
@@ -128,7 +132,6 @@ public class SearchCondition {
 
     @PreUpdate
     public void preUpdate() {
-
         this.updatedAt = LocalDateTime.now();
     }
 }
