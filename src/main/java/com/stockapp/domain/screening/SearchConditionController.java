@@ -1,6 +1,7 @@
 package com.stockapp.domain.screening;
 
 import com.stockapp.domain.screening.dto.SearchConditionEnabledRequest;
+import com.stockapp.domain.screening.dto.SearchConditionMetadataResponse;
 import com.stockapp.domain.screening.dto.SearchConditionRequest;
 import com.stockapp.domain.screening.dto.SearchConditionResponse;
 import jakarta.validation.Valid;
@@ -16,53 +17,59 @@ import java.util.List;
 @RequiredArgsConstructor
 public class SearchConditionController {
 
-    private final SearchConditionService searchConditionService;
+        private final SearchConditionService searchConditionService;
 
-    @GetMapping
-    public List<SearchConditionResponse> getSearchConditions() {
+        @GetMapping("/meta")
+        public SearchConditionMetadataResponse getMetadata() {
 
-        return searchConditionService.getSearchConditions();
-    }
+                return SearchConditionMetadataResponse.create();
+        }
 
-    @GetMapping("/{id}")
-    public SearchConditionResponse getSearchCondition(
-            @PathVariable Long id) {
+        @GetMapping
+        public List<SearchConditionResponse> getSearchConditions() {
 
-        return searchConditionService
-                .getSearchCondition(id);
-    }
+                return searchConditionService.getSearchConditions();
+        }
 
-    @PostMapping
-    @ResponseStatus(HttpStatus.CREATED)
-    public SearchConditionResponse createSearchCondition(
-            Authentication authentication,
-            @Valid @RequestBody SearchConditionRequest request) {
+        @GetMapping("/{id}")
+        public SearchConditionResponse getSearchCondition(
+                        @PathVariable Long id) {
 
-        return searchConditionService
-                .createSearchCondition(
-                        authentication.getName(),
-                        request);
-    }
+                return searchConditionService
+                                .getSearchCondition(id);
+        }
 
-    @PutMapping("/{id}")
-    public SearchConditionResponse updateSearchCondition(
-            @PathVariable Long id,
-            @Valid @RequestBody SearchConditionRequest request) {
+        @PostMapping
+        @ResponseStatus(HttpStatus.CREATED)
+        public SearchConditionResponse createSearchCondition(
+                        Authentication authentication,
+                        @Valid @RequestBody SearchConditionRequest request) {
 
-        return searchConditionService
-                .updateSearchCondition(
-                        id,
-                        request);
-    }
+                return searchConditionService
+                                .createSearchCondition(
+                                                authentication.getName(),
+                                                request);
+        }
 
-    @PatchMapping("/{id}/enabled")
-    public SearchConditionResponse changeEnabled(
-            @PathVariable Long id,
-            @Valid @RequestBody SearchConditionEnabledRequest request) {
+        @PutMapping("/{id}")
+        public SearchConditionResponse updateSearchCondition(
+                        @PathVariable Long id,
+                        @Valid @RequestBody SearchConditionRequest request) {
 
-        return searchConditionService
-                .changeEnabled(
-                        id,
-                        request.getEnabled());
-    }
+                return searchConditionService
+                                .updateSearchCondition(
+                                                id,
+                                                request);
+        }
+
+        @PatchMapping("/{id}/enabled")
+        public SearchConditionResponse changeEnabled(
+                        @PathVariable Long id,
+                        @Valid @RequestBody SearchConditionEnabledRequest request) {
+
+                return searchConditionService
+                                .changeEnabled(
+                                                id,
+                                                request.getEnabled());
+        }
 }
