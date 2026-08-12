@@ -42,4 +42,5 @@ out/
 .env
 
 DB_SPEC.md
+AGENTS.md
 
