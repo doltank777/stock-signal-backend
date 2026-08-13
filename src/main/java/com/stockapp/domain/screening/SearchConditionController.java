@@ -1,6 +1,7 @@
 package com.stockapp.domain.screening;
 
 import com.stockapp.domain.screening.dto.SearchConditionEnabledRequest;
+import com.stockapp.domain.screening.dto.DeletedSearchConditionResponse;
 import com.stockapp.domain.screening.dto.SearchConditionMetadataResponse;
 import com.stockapp.domain.screening.dto.SearchConditionRequest;
 import com.stockapp.domain.screening.dto.SearchConditionResponse;
@@ -29,6 +30,12 @@ public class SearchConditionController {
         public List<SearchConditionResponse> getSearchConditions() {
 
                 return searchConditionService.getSearchConditions();
+        }
+
+        @GetMapping("/deleted")
+        public List<DeletedSearchConditionResponse> getDeletedSearchConditions() {
+
+                return searchConditionService.getDeletedSearchConditions();
         }
 
         @GetMapping("/{id}")
@@ -82,5 +89,13 @@ public class SearchConditionController {
                 searchConditionService.deleteSearchCondition(
                                 id,
                                 authentication.getName());
+        }
+
+        @PatchMapping("/{id}/restore")
+        @ResponseStatus(HttpStatus.NO_CONTENT)
+        public void restoreSearchCondition(
+                        @PathVariable Long id) {
+
+                searchConditionService.restoreSearchCondition(id);
         }
 }

@@ -3,6 +3,7 @@ package com.stockapp.domain.screening;
 import com.stockapp.domain.screening.dto.SearchConditionRequest;
 import com.stockapp.domain.screening.dto.SearchConditionResponse;
 import com.stockapp.domain.screening.dto.SearchConditionRuleRequest;
+import com.stockapp.domain.screening.dto.DeletedSearchConditionResponse;
 import com.stockapp.domain.user.User;
 import com.stockapp.domain.user.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -113,6 +114,15 @@ public class SearchConditionService {
         return SearchConditionResponse.from(condition);
     }
 
+    public List<DeletedSearchConditionResponse> getDeletedSearchConditions() {
+
+        return searchConditionRepository
+                .findAllByDeletedAtIsNotNullOrderByDeletedAtDesc()
+                .stream()
+                .map(DeletedSearchConditionResponse::from)
+                .toList();
+    }
+
     @Transactional
     public void deleteSearchCondition(
             Long id,
@@ -122,6 +132,20 @@ public class SearchConditionService {
         User deletedBy = getUser(email);
 
         condition.softDelete(deletedBy);
+
+        searchConditionRepository.flush();
+    }
+
+    @Transactional
+    public void restoreSearchCondition(Long id) {
+
+        SearchCondition condition = searchConditionRepository
+                .findByIdAndDeletedAtIsNotNull(id)
+                .orElseThrow(
+                        () -> new IllegalArgumentException(
+                                "삭제된 검색식을 찾을 수 없습니다."));
+
+        condition.restore();
 
         searchConditionRepository.flush();
     }

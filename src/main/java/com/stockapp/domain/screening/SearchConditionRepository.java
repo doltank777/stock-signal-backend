@@ -10,5 +10,9 @@ public interface SearchConditionRepository
 
     List<SearchCondition> findAllByDeletedAtIsNullOrderByPriorityDescUpdatedAtDesc();
 
+    List<SearchCondition> findAllByDeletedAtIsNotNullOrderByDeletedAtDesc();
+
     Optional<SearchCondition> findByIdAndDeletedAtIsNull(Long id);
+
+    Optional<SearchCondition> findByIdAndDeletedAtIsNotNull(Long id);
 }

@@ -120,6 +120,12 @@ public class SearchCondition {
         this.enabled = false;
     }
 
+    public void restore() {
+        this.deletedAt = null;
+        this.deletedBy = null;
+        this.enabled = false;
+    }
+
     public void addRule(SearchConditionRule rule) {
         rule.assignSearchCondition(this);
         this.rules.add(rule);
