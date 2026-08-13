@@ -25,7 +25,7 @@ public class SearchConditionService {
     public List<SearchConditionResponse> getSearchConditions() {
 
         return searchConditionRepository
-                .findAllByOrderByPriorityDescUpdatedAtDesc()
+                .findAllByDeletedAtIsNullOrderByPriorityDescUpdatedAtDesc()
                 .stream()
                 .map(SearchConditionResponse::from)
                 .toList();
@@ -113,9 +113,22 @@ public class SearchConditionService {
         return SearchConditionResponse.from(condition);
     }
 
+    @Transactional
+    public void deleteSearchCondition(
+            Long id,
+            String email) {
+
+        SearchCondition condition = getCondition(id);
+        User deletedBy = getUser(email);
+
+        condition.softDelete(deletedBy);
+
+        searchConditionRepository.flush();
+    }
+
     private SearchCondition getCondition(Long id) {
 
-        return searchConditionRepository.findById(id)
+        return searchConditionRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(
                         () -> new IllegalArgumentException(
                                 "검색식을 찾을 수 없습니다."));

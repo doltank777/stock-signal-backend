@@ -72,4 +72,15 @@ public class SearchConditionController {
                                                 id,
                                                 request.getEnabled());
         }
+
+        @DeleteMapping("/{id}")
+        @ResponseStatus(HttpStatus.NO_CONTENT)
+        public void deleteSearchCondition(
+                        Authentication authentication,
+                        @PathVariable Long id) {
+
+                searchConditionService.deleteSearchCondition(
+                                id,
+                                authentication.getName());
+        }
 }

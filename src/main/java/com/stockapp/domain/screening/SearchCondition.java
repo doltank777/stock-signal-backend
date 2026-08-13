@@ -49,6 +49,13 @@ public class SearchCondition {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "deleted_by_id")
+    private User deletedBy;
+
     @OneToMany(mappedBy = "searchCondition", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("ruleOrder ASC")
     private final List<SearchConditionRule> rules = new ArrayList<>();
@@ -105,6 +112,12 @@ public class SearchCondition {
 
     public void changeEnabled(boolean enabled) {
         this.enabled = enabled;
+    }
+
+    public void softDelete(User deletedBy) {
+        this.deletedAt = LocalDateTime.now();
+        this.deletedBy = deletedBy;
+        this.enabled = false;
     }
 
     public void addRule(SearchConditionRule rule) {
