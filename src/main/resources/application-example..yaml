@@ -17,6 +17,19 @@ app:
 kis:
   app-key: YOUR_APP_KEY
   app-secret: YOUR_APP_SECRET
+  daily-price:
+    target-trading-days: 250
+    request-window-months: 6
+    request-delay-ms: 1200
+    retry-max-attempts: 3
+    retry-initial-delay-ms: 2000
+    max-api-calls-per-stock: 10
+    max-lookback-years: 3
+    progress-log-interval: 25
+
+daily-price-load:
+  # 비워 두면 Asia/Seoul 기준 어제를 사용합니다.
+  base-date:
 
 stock:
   import-key: "your-import-key"

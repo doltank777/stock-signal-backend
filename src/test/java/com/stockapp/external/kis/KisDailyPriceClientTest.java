@@ -118,6 +118,20 @@ class KisDailyPriceClientTest {
     }
 
     @Test
+    void preservesKisBusinessErrorCode() {
+        expectResponse("""
+                {"rt_cd":"1","msg_cd":"EGW00201","msg1":"초당 거래건수를 초과하였습니다."}
+                """);
+
+        assertThatThrownBy(() -> client.getDailyPrices(
+                "005930", LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 13)))
+                .isInstanceOfSatisfying(KisApiException.class, exception -> {
+                    assertThat(exception.getMessageCode()).isEqualTo("EGW00201");
+                    assertThat(exception.getMessage()).contains("초당 거래건수");
+                });
+    }
+
+    @Test
     void rejectsInvalidDailyPriceData() {
         expectResponse("""
                 {

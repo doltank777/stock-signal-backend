@@ -13,4 +13,18 @@ public class KisProperties {
     private String webSocketUrl;
     private String appKey;
     private String appSecret;
+    private DailyPrice dailyPrice = new DailyPrice();
+
+    @Getter
+    @Setter
+    public static class DailyPrice {
+        private int targetTradingDays = 250;
+        private int requestWindowMonths = 6;
+        private long requestDelayMs = 1200;
+        private int retryMaxAttempts = 3;
+        private long retryInitialDelayMs = 2000;
+        private int maxApiCallsPerStock = 10;
+        private int maxLookbackYears = 3;
+        private int progressLogInterval = 25;
+    }
 }

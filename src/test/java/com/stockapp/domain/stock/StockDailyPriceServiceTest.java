@@ -48,8 +48,8 @@ class StockDailyPriceServiceTest {
     void setUp() {
         stockDailyPriceService = new StockDailyPriceService(
                 stockRepository,
-                stockDailyPriceRepository,
-                kisDailyPriceClient);
+                kisDailyPriceClient,
+                new StockDailyPriceWriter(stockDailyPriceRepository));
         stock = Stock.builder()
                 .id(1L)
                 .stockCode("005930")
@@ -67,10 +67,6 @@ class StockDailyPriceServiceTest {
         when(kisDailyPriceClient.getDailyPrices(
                 "005930", START_DATE, END_DATE))
                 .thenReturn(prices);
-        when(stockDailyPriceRepository.existsByStockAndTradeDate(
-                any(Stock.class), any(LocalDate.class)))
-                .thenReturn(false);
-
         StockDailyPriceSaveResult result = stockDailyPriceService
                 .saveDailyPrices("005930", START_DATE, END_DATE);
 
@@ -100,9 +96,9 @@ class StockDailyPriceServiceTest {
         when(kisDailyPriceClient.getDailyPrices(
                 "005930", START_DATE, END_DATE))
                 .thenReturn(prices);
-        when(stockDailyPriceRepository.existsByStockAndTradeDate(
-                stock, prices.get(0).getTradeDate()))
-                .thenReturn(true);
+        when(stockDailyPriceRepository.findTradeDates(
+                stock, LocalDate.of(2026, 8, 10), LocalDate.of(2026, 8, 12)))
+                .thenReturn(List.of(prices.get(0).getTradeDate()));
 
         StockDailyPriceSaveResult result = stockDailyPriceService
                 .saveDailyPrices("005930", START_DATE, END_DATE);
@@ -121,9 +117,9 @@ class StockDailyPriceServiceTest {
         when(kisDailyPriceClient.getDailyPrices(
                 "005930", START_DATE, END_DATE))
                 .thenReturn(prices);
-        when(stockDailyPriceRepository.existsByStockAndTradeDate(
-                any(Stock.class), any(LocalDate.class)))
-                .thenReturn(true);
+        when(stockDailyPriceRepository.findTradeDates(
+                stock, LocalDate.of(2026, 8, 10), LocalDate.of(2026, 8, 12)))
+                .thenReturn(prices.stream().map(KisDailyPrice::getTradeDate).toList());
 
         StockDailyPriceSaveResult result = stockDailyPriceService
                 .saveDailyPrices("005930", START_DATE, END_DATE);

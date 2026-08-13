@@ -67,8 +67,7 @@ public class KisDailyPriceClient {
         }
 
         if (!"0".equals(response.getRtCd())) {
-            throw new IllegalArgumentException(
-                    "KIS 일봉 조회 실패: " + response.getMsg());
+            throw new KisApiException(response.getMsgCd(), response.getMsg());
         }
 
         return response.toDailyPrices();

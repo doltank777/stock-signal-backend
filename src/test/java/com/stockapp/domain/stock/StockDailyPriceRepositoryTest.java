@@ -87,6 +87,21 @@ class StockDailyPriceRepositoryTest {
                 .isFalse();
     }
 
+    @Test
+    void countsAndSelectsDatesUpToBaseDate() {
+        List.of(LocalDate.of(2026, 8, 10), LocalDate.of(2026, 8, 12),
+                LocalDate.of(2026, 8, 14)).forEach(date ->
+                stockDailyPriceRepository.save(createDailyPrice(date)));
+        stockDailyPriceRepository.flush();
+
+        assertThat(stockDailyPriceRepository.countByStockAndTradeDateLessThanEqual(
+                stock, LocalDate.of(2026, 8, 12))).isEqualTo(2);
+        assertThat(stockDailyPriceRepository.findTradeDates(
+                stock, LocalDate.of(2026, 8, 11), LocalDate.of(2026, 8, 14)))
+                .containsExactlyInAnyOrder(
+                        LocalDate.of(2026, 8, 12), LocalDate.of(2026, 8, 14));
+    }
+
     private StockDailyPrice createDailyPrice(LocalDate tradeDate) {
         return StockDailyPrice.builder()
                 .stock(stock)
