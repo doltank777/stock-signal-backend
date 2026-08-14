@@ -22,6 +22,8 @@ public record StockMetricContext(
         Objects.requireNonNull(snapshot, "snapshot Optional은 필수입니다.");
         dailyPrices = List.copyOf(
                 Objects.requireNonNull(dailyPrices, "dailyPrices는 필수입니다."));
+        validateSnapshot(stock, baseDate, snapshot);
+        validateDailyPrices(baseDate, dailyPrices);
     }
 
     public Optional<List<DailyPriceData>> recentDailyPrices(int period) {
@@ -35,5 +37,42 @@ public record StockMetricContext(
         return Optional.of(List.copyOf(dailyPrices.subList(
                 dailyPrices.size() - period,
                 dailyPrices.size())));
+    }
+
+    private static void validateSnapshot(
+            Stock stock,
+            LocalDate baseDate,
+            Optional<LatestStockSnapshot> snapshot
+    ) {
+        snapshot.ifPresent(value -> {
+            if (!Objects.equals(stock.getStockCode(), value.stockCode())) {
+                throw new IllegalArgumentException(
+                        "snapshot 종목코드가 context 종목과 일치하지 않습니다.");
+            }
+            if (!Objects.equals(baseDate, value.tradeDate())) {
+                throw new IllegalArgumentException(
+                        "snapshot 거래일이 context 기준일과 일치하지 않습니다.");
+            }
+        });
+    }
+
+    private static void validateDailyPrices(
+            LocalDate baseDate,
+            List<DailyPriceData> dailyPrices
+    ) {
+        LocalDate previousDate = null;
+        for (DailyPriceData dailyPrice : dailyPrices) {
+            LocalDate tradeDate = Objects.requireNonNull(
+                    dailyPrice.tradeDate(), "dailyPrice 거래일은 필수입니다.");
+            if (!tradeDate.isBefore(baseDate)) {
+                throw new IllegalArgumentException(
+                        "dailyPrice 거래일은 context 기준일보다 이전이어야 합니다.");
+            }
+            if (previousDate != null && !tradeDate.isAfter(previousDate)) {
+                throw new IllegalArgumentException(
+                        "dailyPrices는 거래일 오름차순이어야 합니다.");
+            }
+            previousDate = tradeDate;
+        }
     }
 }

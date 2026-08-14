@@ -1,6 +1,7 @@
 package com.stockapp.domain.screening.metric;
 
 import com.stockapp.domain.screening.ScreeningMetric;
+import com.stockapp.domain.screening.dto.SearchConditionMetadataResponse;
 import com.stockapp.domain.stock.MarketType;
 import com.stockapp.domain.stock.Stock;
 import com.stockapp.domain.stock.dto.DailyPriceData;
@@ -15,7 +16,9 @@ import java.math.MathContext;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -37,6 +40,23 @@ class ScreeningMetricCalculatorTest {
     }
 
     @Test
+    void convertsLongMaxSnapshotValuesExactly() {
+        StockMetricContext context = context(
+                snapshot(Long.MAX_VALUE, 3.5, Long.MAX_VALUE), List.of());
+
+        assertCalculated(
+                ScreeningMetric.CURRENT_PRICE,
+                null,
+                context,
+                BigDecimal.valueOf(Long.MAX_VALUE));
+        assertCalculated(
+                ScreeningMetric.VOLUME,
+                null,
+                context,
+                BigDecimal.valueOf(Long.MAX_VALUE));
+    }
+
+    @Test
     void currentPriceIsUnavailableWithoutSnapshot() {
         assertThat(calculator.calculate(
                 ScreeningMetric.CURRENT_PRICE, null, emptyContext()))
@@ -44,7 +64,10 @@ class ScreeningMetricCalculatorTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"3.5, 3.5", "0.0, 0.0", "-2.75, -2.75"})
+    @CsvSource({
+            "3.5, 3.5", "0.0, 0.0", "-2.75, -2.75",
+            "0.1, 0.1", "-0.1, -0.1", "3.14, 3.14"
+    })
     void preservesChangeRateUnit(double changeRate, String expected) {
         assertCalculated(
                 ScreeningMetric.CHANGE_RATE,
@@ -75,6 +98,40 @@ class ScreeningMetricCalculatorTest {
         assertThat(calculator.calculate(
                 ScreeningMetric.VOLUME, null, emptyContext()))
                 .isEmpty();
+    }
+
+    @Test
+    void malformedSnapshotFailsOnlyWhenRequestedFieldIsUsed() {
+        LatestStockSnapshot missingCurrentPrice = new LatestStockSnapshot(
+                "005930", BASE_DATE, null, 3.5, 1_000L,
+                LocalDateTime.of(2026, 8, 14, 12, 0));
+        LatestStockSnapshot missingChangeRate = new LatestStockSnapshot(
+                "005930", BASE_DATE, 71_000L, null, 1_000L,
+                LocalDateTime.of(2026, 8, 14, 12, 0));
+        LatestStockSnapshot missingVolume = new LatestStockSnapshot(
+                "005930", BASE_DATE, 71_000L, 3.5, null,
+                LocalDateTime.of(2026, 8, 14, 12, 0));
+
+        assertThatThrownBy(() -> calculator.calculate(
+                ScreeningMetric.CURRENT_PRICE,
+                null,
+                context(Optional.of(missingCurrentPrice), List.of())))
+                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> calculator.calculate(
+                ScreeningMetric.CHANGE_RATE,
+                null,
+                context(Optional.of(missingChangeRate), List.of())))
+                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> calculator.calculate(
+                ScreeningMetric.VOLUME,
+                null,
+                context(Optional.of(missingVolume), List.of())))
+                .isInstanceOf(NullPointerException.class);
+        assertCalculated(
+                ScreeningMetric.VOLUME,
+                null,
+                context(Optional.of(missingCurrentPrice), List.of()),
+                "1000");
     }
 
     @Test
@@ -131,12 +188,35 @@ class ScreeningMetricCalculatorTest {
     }
 
     @Test
+    void calculatesAverageVolumeDecimal128Boundary() {
+        assertCalculated(
+                ScreeningMetric.AVERAGE_VOLUME,
+                3,
+                context(Optional.empty(), dailyVolumes(1, 2, 2)),
+                BigDecimal.valueOf(5)
+                        .divide(BigDecimal.valueOf(3), MathContext.DECIMAL128));
+    }
+
+    @Test
     void calculatesVolumeRatioAsMultipleWithoutPercentConversion() {
         assertCalculated(
                 ScreeningMetric.VOLUME_RATIO,
                 2,
                 context(snapshot(71_000L, 3.5, 150L), dailyVolumes(100, 100)),
                 "1.5");
+    }
+
+    @Test
+    void volumeRatioMatchesScaleDifferentThresholdNumerically() {
+        BigDecimal value = calculator.calculate(
+                        ScreeningMetric.VOLUME_RATIO,
+                        2,
+                        context(
+                                snapshot(71_000L, 3.5, 150L),
+                                dailyVolumes(100, 100)))
+                .orElseThrow();
+
+        assertThat(value.compareTo(new BigDecimal("1.500000"))).isZero();
     }
 
     @Test
@@ -214,6 +294,45 @@ class ScreeningMetricCalculatorTest {
     }
 
     @Test
+    void calculatesMovingAverageDecimal128Boundary() {
+        assertCalculated(
+                ScreeningMetric.MOVING_AVERAGE,
+                3,
+                context(Optional.empty(), dailyClosePrices(10_000, 10_001, 10_001)),
+                BigDecimal.valueOf(30_002)
+                        .divide(BigDecimal.valueOf(3), MathContext.DECIMAL128));
+    }
+
+    @Test
+    void malformedDailyPriceFailsOnlyWhenRequestedFieldIsUsed() {
+        DailyPriceData missingVolume = new DailyPriceData(
+                BASE_DATE.minusDays(1), 10_000L, null);
+        DailyPriceData missingClosePrice = new DailyPriceData(
+                BASE_DATE.minusDays(1), null, 100L);
+
+        assertThatThrownBy(() -> calculator.calculate(
+                ScreeningMetric.AVERAGE_VOLUME,
+                1,
+                context(Optional.empty(), List.of(missingVolume))))
+                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> calculator.calculate(
+                ScreeningMetric.MOVING_AVERAGE,
+                1,
+                context(Optional.empty(), List.of(missingClosePrice))))
+                .isInstanceOf(NullPointerException.class);
+        assertCalculated(
+                ScreeningMetric.MOVING_AVERAGE,
+                1,
+                context(Optional.empty(), List.of(missingVolume)),
+                "10000");
+        assertCalculated(
+                ScreeningMetric.AVERAGE_VOLUME,
+                1,
+                context(Optional.empty(), List.of(missingClosePrice)),
+                "100");
+    }
+
+    @Test
     void movingAverageIsUnavailableForInsufficientHistory() {
         assertThat(calculator.calculate(
                 ScreeningMetric.MOVING_AVERAGE,
@@ -274,6 +393,50 @@ class ScreeningMetricCalculatorTest {
         assertThat(calculator.calculate(
                 ScreeningMetric.AVERAGE_VOLUME, 10_000, emptyContext()))
                 .isEmpty();
+    }
+
+    @Test
+    void metadataAndCalculatorAgreeOnPeriodRequirement() {
+        Map<String, Boolean> metadataRequirements =
+                SearchConditionMetadataResponse.create()
+                        .getMetrics()
+                        .stream()
+                        .collect(Collectors.toMap(
+                                SearchConditionMetadataResponse.MetricItem::getCode,
+                                SearchConditionMetadataResponse.MetricItem::isPeriodRequired));
+
+        for (ScreeningMetric metric : ScreeningMetric.values()) {
+            boolean periodRequired = metric == ScreeningMetric.AVERAGE_VOLUME
+                    || metric == ScreeningMetric.VOLUME_RATIO
+                    || metric == ScreeningMetric.MOVING_AVERAGE;
+            assertThat(metadataRequirements.get(metric.name()))
+                    .isEqualTo(periodRequired);
+
+            if (periodRequired) {
+                assertThatThrownBy(() -> calculator.calculate(
+                        metric, null, emptyContext()))
+                        .isInstanceOf(IllegalArgumentException.class);
+            } else {
+                assertThatThrownBy(() -> calculator.calculate(
+                        metric, 1, emptyContext()))
+                        .isInstanceOf(IllegalArgumentException.class);
+            }
+        }
+    }
+
+    @Test
+    void consecutiveCalculationsOnSameCalculatorAreIndependent() {
+        StockMetricContext first = context(
+                snapshot(10_000L, 1.0, 100L), List.of());
+        StockMetricContext second = context(
+                snapshot(20_000L, 2.0, 200L), List.of());
+
+        assertCalculated(
+                ScreeningMetric.CURRENT_PRICE, null, first, "10000");
+        assertCalculated(
+                ScreeningMetric.CURRENT_PRICE, null, second, "20000");
+        assertCalculated(
+                ScreeningMetric.VOLUME, null, first, "100");
     }
 
     private void assertCalculated(

@@ -1,11 +1,15 @@
 package com.stockapp.domain.screening;
 
+import com.stockapp.domain.screening.dto.SearchConditionRequest;
+import com.stockapp.domain.screening.dto.SearchConditionRuleRequest;
 import com.stockapp.domain.user.User;
 import com.stockapp.domain.user.UserRepository;
 import com.stockapp.domain.user.UserRole;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -13,6 +17,9 @@ import java.util.Optional;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -123,6 +130,29 @@ class SearchConditionServiceTest {
         assertThat(condition.isEnabled()).isFalse();
         assertThat(condition.getRules()).containsExactly(rule);
         verify(searchConditionRepository).flush();
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {0, -1})
+    void rejectsNonPositivePeriodEvenWhenBeanValidationIsBypassed(int period) {
+        User admin = createAdmin();
+        SearchConditionRequest request =
+                org.mockito.Mockito.mock(SearchConditionRequest.class);
+        SearchConditionRuleRequest rule =
+                org.mockito.Mockito.mock(SearchConditionRuleRequest.class);
+        when(userRepository.findByEmail("admin@example.com"))
+                .thenReturn(Optional.of(admin));
+        when(request.getRules()).thenReturn(List.of(rule));
+        when(rule.getStage()).thenReturn(ScreeningStage.SCREENING);
+        when(rule.getLeftMetric()).thenReturn(ScreeningMetric.AVERAGE_VOLUME);
+        when(rule.getLeftPeriod()).thenReturn(period);
+        when(rule.getRuleOrder()).thenReturn(1);
+
+        assertThatThrownBy(() -> searchConditionService.createSearchCondition(
+                "admin@example.com", request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("왼쪽 지표 기간은 1 이상이어야 합니다.");
+        verify(searchConditionRepository, never()).saveAndFlush(any());
     }
 
     private User createAdmin() {

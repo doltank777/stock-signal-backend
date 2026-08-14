@@ -352,6 +352,12 @@ public class SearchConditionService {
                             + "에는 기간이 필요합니다.");
         }
 
+        if (periodRequired && period < 1) {
+            throw new IllegalArgumentException(
+                    fieldName
+                            + " 기간은 1 이상이어야 합니다.");
+        }
+
         if (!periodRequired && period != null) {
             throw new IllegalArgumentException(
                     fieldName

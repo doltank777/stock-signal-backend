@@ -45,6 +45,86 @@ class StockMetricContextTest {
         assertThat(context.dailyPrices()).hasSize(3);
         assertThatThrownBy(() -> context.dailyPrices().clear())
                 .isInstanceOf(UnsupportedOperationException.class);
+        assertThatThrownBy(() -> context.recentDailyPrices(2)
+                .orElseThrow()
+                .clear())
+                .isInstanceOf(UnsupportedOperationException.class);
+    }
+
+    @Test
+    void rejectsNullContextComponents() {
+        assertThatThrownBy(() -> new StockMetricContext(
+                null, BASE_DATE, Optional.empty(), List.of()))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("stock은 필수입니다.");
+        assertThatThrownBy(() -> new StockMetricContext(
+                stock(), null, Optional.empty(), List.of()))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("baseDate는 필수입니다.");
+        assertThatThrownBy(() -> new StockMetricContext(
+                stock(), BASE_DATE, null, List.of()))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("snapshot Optional은 필수입니다.");
+        assertThatThrownBy(() -> new StockMetricContext(
+                stock(), BASE_DATE, Optional.empty(), null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("dailyPrices는 필수입니다.");
+    }
+
+    @Test
+    void rejectsNullDailyPriceElement() {
+        List<DailyPriceData> dailyPrices = new ArrayList<>();
+        dailyPrices.add(null);
+
+        assertThatThrownBy(() -> context(Optional.empty(), dailyPrices))
+                .isInstanceOf(NullPointerException.class);
+    }
+
+    @Test
+    void rejectsSnapshotForDifferentStockOrBaseDate() {
+        LatestStockSnapshot otherStock = new LatestStockSnapshot(
+                "000660", BASE_DATE, 71_000L, 3.5,
+                1_000L, LocalDateTime.of(2026, 8, 14, 12, 0));
+        LatestStockSnapshot stale = new LatestStockSnapshot(
+                "005930", BASE_DATE.minusDays(1), 71_000L, 3.5,
+                1_000L, LocalDateTime.of(2026, 8, 13, 12, 0));
+
+        assertThatThrownBy(() -> context(Optional.of(otherStock), List.of()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("snapshot 종목코드가 context 종목과 일치하지 않습니다.");
+        assertThatThrownBy(() -> context(Optional.of(stale), List.of()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("snapshot 거래일이 context 기준일과 일치하지 않습니다.");
+    }
+
+    @Test
+    void rejectsDailyPriceOnOrAfterBaseDate() {
+        DailyPriceData sameDate = new DailyPriceData(
+                BASE_DATE, 10_000L, 100L);
+        DailyPriceData future = new DailyPriceData(
+                BASE_DATE.plusDays(1), 10_000L, 100L);
+
+        assertThatThrownBy(() -> context(Optional.empty(), List.of(sameDate)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("dailyPrice 거래일은 context 기준일보다 이전이어야 합니다.");
+        assertThatThrownBy(() -> context(Optional.empty(), List.of(future)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("dailyPrice 거래일은 context 기준일보다 이전이어야 합니다.");
+    }
+
+    @Test
+    void rejectsNullOrNonAscendingDailyTradeDate() {
+        DailyPriceData nullDate = new DailyPriceData(null, 10_000L, 100L);
+        List<DailyPriceData> descending = List.of(
+                new DailyPriceData(BASE_DATE.minusDays(1), 10_000L, 100L),
+                new DailyPriceData(BASE_DATE.minusDays(2), 10_000L, 100L));
+
+        assertThatThrownBy(() -> context(Optional.empty(), List.of(nullDate)))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("dailyPrice 거래일은 필수입니다.");
+        assertThatThrownBy(() -> context(Optional.empty(), descending))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("dailyPrices는 거래일 오름차순이어야 합니다.");
     }
 
     @Test
