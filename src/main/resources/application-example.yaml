@@ -30,6 +30,8 @@ kis:
 daily-price-load:
   # 비워 두면 Asia/Seoul 기준 어제를 사용합니다.
   base-date:
+  # 비워 두면 KOSPI/KOSDAQ 전체 종목을 대상으로 합니다.
+  stock-code:
 
 stock:
   import-key: "your-import-key"
