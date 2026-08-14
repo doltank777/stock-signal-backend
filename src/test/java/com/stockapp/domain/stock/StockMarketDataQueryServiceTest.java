@@ -7,10 +7,15 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.transaction.annotation.AnnotationTransactionAttributeSource;
+import org.springframework.transaction.interceptor.TransactionAttribute;
 
+import java.lang.reflect.Method;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -22,6 +27,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.any;
 
 @ExtendWith(MockitoExtension.class)
 class StockMarketDataQueryServiceTest {
@@ -91,6 +97,23 @@ class StockMarketDataQueryServiceTest {
     }
 
     @Test
+    void doesNotFallBackToFridaySnapshotForWeekendBaseDate() {
+        LocalDate sunday = LocalDate.of(2026, 8, 16);
+        when(stockPriceRepository
+                .findTopByStockCodeAndTradeDateOrderByCollectedAtDescIdDesc(
+                        "005930", sunday))
+                .thenReturn(Optional.empty());
+
+        assertThat(service.findLatestSnapshotForDate(stock, sunday))
+                .isEmpty();
+        verify(stockPriceRepository)
+                .findTopByStockCodeAndTradeDateOrderByCollectedAtDescIdDesc(
+                        "005930", sunday);
+        verify(stockPriceRepository, never())
+                .findTopByStockCodeOrderByCollectedAtDesc("005930");
+    }
+
+    @Test
     void rejectsNullStockForSnapshot() {
         assertThatThrownBy(() ->
                 service.findLatestSnapshotForDate(null, BASE_DATE))
@@ -134,6 +157,39 @@ class StockMarketDataQueryServiceTest {
     }
 
     @Test
+    void returnsExactPeriodBeforeWeekendWithoutChangingImmutableSource() {
+        LocalDate sunday = LocalDate.of(2026, 8, 16);
+        List<StockDailyPrice> immutableDescending = List.of(
+                dailyPrice("2026-08-14", 74_000L, 14_000L),
+                dailyPrice("2026-08-13", 73_000L, 13_000L),
+                dailyPrice("2026-08-12", 72_000L, 12_000L));
+        when(stockDailyPriceRepository
+                .findByStockAndTradeDateBeforeOrderByTradeDateDesc(
+                        stock, sunday, PageRequest.of(0, 3)))
+                .thenReturn(immutableDescending);
+
+        List<DailyPriceData> result =
+                service.findRecentDailyPricesBefore(stock, sunday, 3);
+
+        assertThat(result)
+                .hasSize(3)
+                .extracting(DailyPriceData::tradeDate)
+                .containsExactly(
+                        LocalDate.of(2026, 8, 12),
+                        LocalDate.of(2026, 8, 13),
+                        LocalDate.of(2026, 8, 14));
+        assertThat(immutableDescending)
+                .extracting(StockDailyPrice::getTradeDate)
+                .containsExactly(
+                        LocalDate.of(2026, 8, 14),
+                        LocalDate.of(2026, 8, 13),
+                        LocalDate.of(2026, 8, 12));
+        verify(stockDailyPriceRepository)
+                .findByStockAndTradeDateBeforeOrderByTradeDateDesc(
+                        stock, sunday, PageRequest.of(0, 3));
+    }
+
+    @Test
     void returnsAvailableHistoryWhenFewerThanPeriodExist() {
         when(stockDailyPriceRepository
                 .findByStockAndTradeDateBeforeOrderByTradeDateDesc(
@@ -174,6 +230,51 @@ class StockMarketDataQueryServiceTest {
         verify(stockDailyPriceRepository)
                 .findByStockAndTradeDateBeforeOrderByTradeDateDesc(
                         stock, BASE_DATE, PageRequest.of(0, 1));
+    }
+
+    @Test
+    void passesLargePeriodToRepositoryWithoutApplyingAnArbitraryLimit() {
+        ArgumentCaptor<Pageable> pageableCaptor =
+                ArgumentCaptor.forClass(Pageable.class);
+        when(stockDailyPriceRepository
+                .findByStockAndTradeDateBeforeOrderByTradeDateDesc(
+                        any(Stock.class), any(LocalDate.class), any(Pageable.class)))
+                .thenReturn(List.of());
+
+        assertThat(service.findRecentDailyPricesBefore(
+                stock, BASE_DATE, 10_000)).isEmpty();
+
+        verify(stockDailyPriceRepository)
+                .findByStockAndTradeDateBeforeOrderByTradeDateDesc(
+                        org.mockito.ArgumentMatchers.same(stock),
+                        org.mockito.ArgumentMatchers.eq(BASE_DATE),
+                        pageableCaptor.capture());
+        assertThat(pageableCaptor.getValue().getPageNumber()).isZero();
+        assertThat(pageableCaptor.getValue().getPageSize()).isEqualTo(10_000);
+    }
+
+    @Test
+    void exposesReadOnlyTransactionMetadataForBothQueryMethods()
+            throws NoSuchMethodException {
+        AnnotationTransactionAttributeSource attributeSource =
+                new AnnotationTransactionAttributeSource();
+        Method snapshotMethod = StockMarketDataQueryService.class.getMethod(
+                "findLatestSnapshotForDate", Stock.class, LocalDate.class);
+        Method dailyMethod = StockMarketDataQueryService.class.getMethod(
+                "findRecentDailyPricesBefore",
+                Stock.class, LocalDate.class, int.class);
+
+        TransactionAttribute snapshotAttribute = attributeSource
+                .getTransactionAttribute(
+                        snapshotMethod, StockMarketDataQueryService.class);
+        TransactionAttribute dailyAttribute = attributeSource
+                .getTransactionAttribute(
+                        dailyMethod, StockMarketDataQueryService.class);
+
+        assertThat(snapshotAttribute).isNotNull();
+        assertThat(snapshotAttribute.isReadOnly()).isTrue();
+        assertThat(dailyAttribute).isNotNull();
+        assertThat(dailyAttribute.isReadOnly()).isTrue();
     }
 
     @ParameterizedTest
