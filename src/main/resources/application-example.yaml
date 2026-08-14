@@ -26,6 +26,14 @@ kis:
     max-api-calls-per-stock: 10
     max-lookback-years: 3
     progress-log-interval: 25
+    update:
+      request-delay-ms: 1200
+      max-catch-up-days: 30
+      retry:
+        # 최초 요청을 포함한 최대 시도 횟수입니다.
+        max-attempts: 3
+        initial-backoff-ms: 2000
+        multiplier: 2
 
 daily-price-load:
   # 비워 두면 Asia/Seoul 기준 어제를 사용합니다.

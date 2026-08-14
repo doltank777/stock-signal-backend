@@ -26,5 +26,22 @@ public class KisProperties {
         private int maxApiCallsPerStock = 10;
         private int maxLookbackYears = 3;
         private int progressLogInterval = 25;
+        private Update update = new Update();
+    }
+
+    @Getter
+    @Setter
+    public static class Update {
+        private long requestDelayMs = 1200;
+        private int maxCatchUpDays = 30;
+        private Retry retry = new Retry();
+    }
+
+    @Getter
+    @Setter
+    public static class Retry {
+        private int maxAttempts = 3;
+        private long initialBackoffMs = 2000;
+        private long multiplier = 2;
     }
 }

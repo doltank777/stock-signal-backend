@@ -7,6 +7,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 public interface StockDailyPriceRepository
         extends JpaRepository<StockDailyPrice, Long> {
@@ -23,6 +24,9 @@ public interface StockDailyPriceRepository
     );
 
     long countByStockAndTradeDateLessThanEqual(Stock stock, LocalDate endDate);
+
+    @Query("select max(price.tradeDate) from StockDailyPrice price where price.stock = :stock")
+    Optional<LocalDate> findLatestTradeDateByStock(@Param("stock") Stock stock);
 
     @Query("""
             select price.tradeDate

@@ -102,6 +102,22 @@ class StockDailyPriceRepositoryTest {
                         LocalDate.of(2026, 8, 12), LocalDate.of(2026, 8, 14));
     }
 
+    @Test
+    void returnsLatestTradeDateOrEmpty() {
+        assertThat(stockDailyPriceRepository.findLatestTradeDateByStock(stock))
+                .isEmpty();
+
+        List.of(
+                LocalDate.of(2026, 8, 10),
+                LocalDate.of(2026, 8, 14),
+                LocalDate.of(2026, 8, 12)
+        ).forEach(date -> stockDailyPriceRepository.save(createDailyPrice(date)));
+        stockDailyPriceRepository.flush();
+
+        assertThat(stockDailyPriceRepository.findLatestTradeDateByStock(stock))
+                .contains(LocalDate.of(2026, 8, 14));
+    }
+
     private StockDailyPrice createDailyPrice(LocalDate tradeDate) {
         return StockDailyPrice.builder()
                 .stock(stock)
