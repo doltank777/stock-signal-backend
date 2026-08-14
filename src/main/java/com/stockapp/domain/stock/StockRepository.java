@@ -9,6 +9,11 @@ public interface StockRepository extends JpaRepository<Stock, Long> {
 
     Optional<Stock> findByStockCode(String stockCode);
 
+    Optional<Stock> findByStockCodeAndMarketTypeIn(
+            String stockCode,
+            List<MarketType> marketTypes
+    );
+
     boolean existsByStockCode(String stockCode);
 
     List<Stock> findByMarketTypeInOrderByIdAsc(List<MarketType> marketTypes);

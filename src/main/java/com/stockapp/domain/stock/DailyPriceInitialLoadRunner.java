@@ -1,6 +1,5 @@
 package com.stockapp.domain.stock;
 
-import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
@@ -11,20 +10,37 @@ import java.time.LocalDate;
 
 @Component
 @Profile("daily-price-load")
-@RequiredArgsConstructor
 public class DailyPriceInitialLoadRunner implements ApplicationRunner {
 
     private final DailyPriceInitialLoader loader;
+    private final String baseDate;
+    private final String stockCode;
 
-    @Value("${daily-price-load.base-date:}")
-    private String baseDate;
+    public DailyPriceInitialLoadRunner(
+            DailyPriceInitialLoader loader,
+            @Value("${daily-price-load.base-date:}") String baseDate,
+            @Value("${daily-price-load.stock-code:}") String stockCode
+    ) {
+        this.loader = loader;
+        this.baseDate = baseDate;
+        this.stockCode = stockCode;
+    }
 
     @Override
     public void run(ApplicationArguments args) {
         if (baseDate == null || baseDate.isBlank()) {
-            loader.load();
+            if (stockCode == null || stockCode.isBlank()) {
+                loader.load();
+            } else {
+                loader.loadStock(stockCode);
+            }
             return;
         }
-        loader.load(LocalDate.parse(baseDate));
+        LocalDate parsedBaseDate = LocalDate.parse(baseDate);
+        if (stockCode == null || stockCode.isBlank()) {
+            loader.load(parsedBaseDate);
+        } else {
+            loader.loadStock(stockCode, parsedBaseDate);
+        }
     }
 }

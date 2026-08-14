@@ -20,6 +20,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -78,6 +79,68 @@ class DailyPriceInitialLoaderTest {
         verify(stockRepository).findByMarketTypeInOrderByIdAsc(markets.capture());
         assertThat(markets.getValue()).containsExactly(MarketType.KOSPI, MarketType.KOSDAQ);
         assertThat(result.getSkippedStockCount()).isEqualTo(2);
+        verify(client, never()).getDailyPrices(any(), any(), any());
+    }
+
+    @Test
+    void configuredStockCodeProcessesOnlyMatchingTargetMarketStock() {
+        when(stockRepository.findByStockCodeAndMarketTypeIn(any(), anyList()))
+                .thenReturn(Optional.of(kospi));
+        when(dailyPriceRepository.countByStockAndTradeDateLessThanEqual(
+                kospi, BASE_DATE)).thenReturn(3L);
+
+        DailyPriceInitialLoadResult result = loader.loadStock(" 005930 ", BASE_DATE);
+
+        ArgumentCaptor<List<MarketType>> markets = ArgumentCaptor.forClass(List.class);
+        verify(stockRepository).findByStockCodeAndMarketTypeIn(
+                org.mockito.ArgumentMatchers.eq("005930"), markets.capture());
+        assertThat(markets.getValue()).containsExactly(MarketType.KOSPI, MarketType.KOSDAQ);
+        verify(stockRepository, never()).findByMarketTypeInOrderByIdAsc(anyList());
+        assertThat(result.getTargetStockCount()).isEqualTo(1);
+        assertThat(result.getSkippedStockCount()).isEqualTo(1);
+    }
+
+    @Test
+    void blankStockCodeKeepsFullTargetSelection() {
+        when(stockRepository.findByMarketTypeInOrderByIdAsc(anyList()))
+                .thenReturn(List.of());
+
+        DailyPriceInitialLoadResult result = loader.loadStock("  ", BASE_DATE);
+
+        verify(stockRepository).findByMarketTypeInOrderByIdAsc(anyList());
+        verify(stockRepository, never()).findByStockCodeAndMarketTypeIn(any(), anyList());
+        assertThat(result.getTargetStockCount()).isZero();
+    }
+
+    @Test
+    void unknownStockCodeFailsWithoutFallingBackToAllStocks() {
+        when(stockRepository.findByStockCodeAndMarketTypeIn(any(), anyList()))
+                .thenReturn(Optional.empty());
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                        () -> loader.loadStock("999999", BASE_DATE))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("999999");
+
+        verify(stockRepository, never()).findByMarketTypeInOrderByIdAsc(anyList());
+        verify(client, never()).getDailyPrices(any(), any(), any());
+    }
+
+    @Test
+    void konexStockCodeIsExcludedFromInitialLoadTargets() {
+        Stock konex = stock(3L, "123456", MarketType.KONEX);
+        when(stockRepository.findByStockCodeAndMarketTypeIn(any(), anyList()))
+                .thenReturn(Optional.empty());
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                        () -> loader.loadStock(konex.getStockCode(), BASE_DATE))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining(konex.getStockCode());
+
+        ArgumentCaptor<List<MarketType>> markets = ArgumentCaptor.forClass(List.class);
+        verify(stockRepository).findByStockCodeAndMarketTypeIn(
+                org.mockito.ArgumentMatchers.eq(konex.getStockCode()), markets.capture());
+        assertThat(markets.getValue()).doesNotContain(MarketType.KONEX);
         verify(client, never()).getDailyPrices(any(), any(), any());
     }
 
@@ -209,6 +272,46 @@ class DailyPriceInitialLoaderTest {
     void runnerUsesDedicatedProfile() {
         Profile profile = DailyPriceInitialLoadRunner.class.getAnnotation(Profile.class);
         assertThat(profile.value()).containsExactly("daily-price-load");
+    }
+
+    @Test
+    void runnerWithoutOverridesKeepsExistingLoadEntryPoint() {
+        DailyPriceInitialLoader runnerLoader = org.mockito.Mockito.mock(
+                DailyPriceInitialLoader.class);
+        DailyPriceInitialLoadRunner runner = new DailyPriceInitialLoadRunner(
+                runnerLoader, "", "");
+
+        runner.run(null);
+
+        verify(runnerLoader).load();
+        verify(runnerLoader, never()).loadStock(any());
+    }
+
+    @Test
+    void runnerPassesConfiguredStockCodeAndBaseDate() {
+        DailyPriceInitialLoader runnerLoader = org.mockito.Mockito.mock(
+                DailyPriceInitialLoader.class);
+        DailyPriceInitialLoadRunner runner = new DailyPriceInitialLoadRunner(
+                runnerLoader, BASE_DATE.toString(), "005930");
+
+        runner.run(null);
+
+        verify(runnerLoader).loadStock("005930", BASE_DATE);
+        verify(runnerLoader, never()).load(any(LocalDate.class));
+    }
+
+    @Test
+    void runnerPropagatesLoaderFailure() {
+        DailyPriceInitialLoader runnerLoader = org.mockito.Mockito.mock(
+                DailyPriceInitialLoader.class);
+        DailyPriceInitialLoadRunner runner = new DailyPriceInitialLoadRunner(
+                runnerLoader, "", "005930");
+        IllegalStateException failure = new IllegalStateException("invalid KIS configuration");
+        org.mockito.Mockito.when(runnerLoader.loadStock("005930")).thenThrow(failure);
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> runner.run(null))
+                .isSameAs(failure);
+
     }
 
     private void prepareOneStock(Stock stock, long count) {

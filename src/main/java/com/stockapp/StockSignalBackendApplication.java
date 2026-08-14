@@ -2,6 +2,8 @@ package com.stockapp;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.core.env.Profiles;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 @EnableScheduling
@@ -9,7 +11,15 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 public class StockSignalBackendApplication {
 
 	public static void main(String[] args) {
-		SpringApplication.run(StockSignalBackendApplication.class, args);
+		ConfigurableApplicationContext context = SpringApplication.run(
+				StockSignalBackendApplication.class, args);
+		closeAfterBatch(context);
+	}
+
+	static void closeAfterBatch(ConfigurableApplicationContext context) {
+		if (context.getEnvironment().acceptsProfiles(Profiles.of("daily-price-load"))) {
+			context.close();
+		}
 	}
 
 }

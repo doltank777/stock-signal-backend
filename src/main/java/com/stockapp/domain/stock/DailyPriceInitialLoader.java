@@ -29,6 +29,8 @@ public class DailyPriceInitialLoader {
 
     private static final ZoneId KOREA_ZONE = ZoneId.of("Asia/Seoul");
     private static final String RATE_LIMIT_CODE = "EGW00201";
+    private static final List<MarketType> TARGET_MARKETS =
+            List.of(MarketType.KOSPI, MarketType.KOSDAQ);
 
     private final StockRepository stockRepository;
     private final StockDailyPriceRepository stockDailyPriceRepository;
@@ -43,10 +45,25 @@ public class DailyPriceInitialLoader {
     }
 
     public DailyPriceInitialLoadResult load(LocalDate baseEndDate) {
+        return load(baseEndDate, null);
+    }
+
+    public DailyPriceInitialLoadResult loadStock(String stockCode) {
+        return loadStock(stockCode,
+                LocalDate.now(clock.withZone(KOREA_ZONE)).minusDays(1));
+    }
+
+    public DailyPriceInitialLoadResult loadStock(String stockCode, LocalDate baseEndDate) {
+        if (stockCode == null || stockCode.isBlank()) {
+            return load(baseEndDate);
+        }
+        return load(baseEndDate, stockCode.trim());
+    }
+
+    private DailyPriceInitialLoadResult load(LocalDate baseEndDate, String stockCode) {
         validateConfiguration();
         KisProperties.DailyPrice config = kisProperties.getDailyPrice();
-        List<Stock> stocks = stockRepository.findByMarketTypeInOrderByIdAsc(
-                List.of(MarketType.KOSPI, MarketType.KOSDAQ));
+        List<Stock> stocks = selectTargetStocks(stockCode);
         LoadSummary summary = new LoadSummary(stocks.size(), Instant.now(clock));
 
         log.info("일봉 최초 적재 시작 - 기준일: {}, 대상 종목 수: {}, target: {}, requestDelayMs: {}",
@@ -83,6 +100,16 @@ public class DailyPriceInitialLoader {
                 result.getPartialHistoryStockCount(), result.getFailedStockCount(),
                 result.getApiCallCount(), Duration.between(result.getStartedAt(), result.getFinishedAt()).toMillis());
         return result;
+    }
+
+    private List<Stock> selectTargetStocks(String stockCode) {
+        if (stockCode == null) {
+            return stockRepository.findByMarketTypeInOrderByIdAsc(TARGET_MARKETS);
+        }
+        Stock stock = stockRepository.findByStockCodeAndMarketTypeIn(stockCode, TARGET_MARKETS)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "KOSPI/KOSDAQ 초기 적재 대상 종목을 찾을 수 없습니다: " + stockCode));
+        return List.of(stock);
     }
 
     private void loadStock(Stock stock, LocalDate baseEndDate, LoadSummary summary) {
