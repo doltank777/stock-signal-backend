@@ -34,9 +34,19 @@ kis:
         max-attempts: 3
         initial-backoff-ms: 2000
         multiplier: 2
+      scheduler:
+        # KIS 당일 일봉 확정 시각 실검증 전까지 기본 비활성입니다.
+        enabled: false
+        cron: "0 20 16 * * MON-FRI"
 
 daily-price-load:
   # 비워 두면 Asia/Seoul 기준 어제를 사용합니다.
+  base-date:
+  # 비워 두면 KOSPI/KOSDAQ 전체 종목을 대상으로 합니다.
+  stock-code:
+
+daily-price-update:
+  # 비워 두면 Asia/Seoul 기준 오늘을 사용합니다.
   base-date:
   # 비워 두면 KOSPI/KOSDAQ 전체 종목을 대상으로 합니다.
   stock-code:

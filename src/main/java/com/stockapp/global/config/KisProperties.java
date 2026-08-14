@@ -35,6 +35,7 @@ public class KisProperties {
         private long requestDelayMs = 1200;
         private int maxCatchUpDays = 30;
         private Retry retry = new Retry();
+        private Scheduler scheduler = new Scheduler();
     }
 
     @Getter
@@ -43,5 +44,12 @@ public class KisProperties {
         private int maxAttempts = 3;
         private long initialBackoffMs = 2000;
         private long multiplier = 2;
+    }
+
+    @Getter
+    @Setter
+    public static class Scheduler {
+        private boolean enabled = false;
+        private String cron = "0 20 16 * * MON-FRI";
     }
 }

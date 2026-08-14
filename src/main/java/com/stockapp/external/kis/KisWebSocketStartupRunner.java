@@ -14,7 +14,7 @@ import java.util.List;
 
 @Slf4j
 @Component
-@Profile("local & !daily-price-load")
+@Profile("local & !daily-price-load & !daily-price-update")
 @RequiredArgsConstructor
 public class KisWebSocketStartupRunner implements ApplicationRunner {
 
