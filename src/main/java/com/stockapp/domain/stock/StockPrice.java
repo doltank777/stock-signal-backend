@@ -5,6 +5,7 @@ import lombok.*;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 
 @Entity
 @Table(name = "stock_prices")
@@ -13,6 +14,8 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @Builder
 public class StockPrice {
+
+    private static final ZoneId KOREA_ZONE = ZoneId.of("Asia/Seoul");
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -38,6 +41,8 @@ public class StockPrice {
 
     @PrePersist
     public void prePersist() {
-        this.collectedAt = LocalDateTime.now();
+        if (this.collectedAt == null) {
+            this.collectedAt = LocalDateTime.now(KOREA_ZONE);
+        }
     }
 }
