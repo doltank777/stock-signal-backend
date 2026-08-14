@@ -48,11 +48,12 @@ class StockDailyPriceRepositoryTest {
     @Test
     void returnsLatestLimitedPricesBeforeBaseDate() {
         List.of(
-                LocalDate.of(2026, 8, 7),
+                LocalDate.of(2026, 8, 8),
                 LocalDate.of(2026, 8, 10),
                 LocalDate.of(2026, 8, 11),
                 LocalDate.of(2026, 8, 12),
-                LocalDate.of(2026, 8, 13)
+                LocalDate.of(2026, 8, 13),
+                LocalDate.of(2026, 8, 14)
         ).forEach(tradeDate -> stockDailyPriceRepository.save(
                 createDailyPrice(tradeDate)));
         stockDailyPriceRepository.flush();
@@ -60,15 +61,63 @@ class StockDailyPriceRepositoryTest {
         List<StockDailyPrice> prices = stockDailyPriceRepository
                 .findByStockAndTradeDateBeforeOrderByTradeDateDesc(
                         stock,
-                        LocalDate.of(2026, 8, 13),
+                        LocalDate.of(2026, 8, 14),
                         PageRequest.of(0, 3));
 
         assertThat(prices)
                 .extracting(StockDailyPrice::getTradeDate)
                 .containsExactly(
+                        LocalDate.of(2026, 8, 13),
                         LocalDate.of(2026, 8, 12),
-                        LocalDate.of(2026, 8, 11),
-                        LocalDate.of(2026, 8, 10));
+                        LocalDate.of(2026, 8, 11));
+    }
+
+    @Test
+    void returnsAllAvailablePricesWhenFewerThanRequestedExist() {
+        List.of(
+                LocalDate.of(2026, 8, 12),
+                LocalDate.of(2026, 8, 13)
+        ).forEach(date -> stockDailyPriceRepository.save(createDailyPrice(date)));
+
+        List<StockDailyPrice> prices = stockDailyPriceRepository
+                .findByStockAndTradeDateBeforeOrderByTradeDateDesc(
+                        stock,
+                        LocalDate.of(2026, 8, 14),
+                        PageRequest.of(0, 5));
+
+        assertThat(prices)
+                .extracting(StockDailyPrice::getTradeDate)
+                .containsExactly(
+                        LocalDate.of(2026, 8, 13),
+                        LocalDate.of(2026, 8, 12));
+    }
+
+    @Test
+    void returnsEmptyListWhenHistoryDoesNotExist() {
+        assertThat(stockDailyPriceRepository
+                .findByStockAndTradeDateBeforeOrderByTradeDateDesc(
+                        stock,
+                        LocalDate.of(2026, 8, 14),
+                        PageRequest.of(0, 5)))
+                .isEmpty();
+    }
+
+    @Test
+    void returnsOneLatestPriceBeforeWeekendBaseDate() {
+        List.of(
+                LocalDate.of(2026, 8, 13),
+                LocalDate.of(2026, 8, 14)
+        ).forEach(date -> stockDailyPriceRepository.save(createDailyPrice(date)));
+
+        List<StockDailyPrice> prices = stockDailyPriceRepository
+                .findByStockAndTradeDateBeforeOrderByTradeDateDesc(
+                        stock,
+                        LocalDate.of(2026, 8, 16),
+                        PageRequest.of(0, 1));
+
+        assertThat(prices)
+                .extracting(StockDailyPrice::getTradeDate)
+                .containsExactly(LocalDate.of(2026, 8, 14));
     }
 
     @Test
