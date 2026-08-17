@@ -8,7 +8,13 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 
 @Entity
-@Table(name = "stock_prices")
+@Table(
+        name = "stock_prices",
+        indexes = @Index(
+                name = "idx_stock_prices_stock_trade_collected_id",
+                columnList = "stock_code, trade_date, collected_at, id"
+        )
+)
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
