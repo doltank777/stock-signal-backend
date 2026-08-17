@@ -1,6 +1,7 @@
 package com.stockapp.domain.screening.metric;
 
 import com.stockapp.domain.screening.SearchCondition;
+import com.stockapp.domain.screening.ScreeningStockDataException;
 import com.stockapp.domain.stock.Stock;
 import com.stockapp.domain.stock.StockMarketDataQueryService;
 import com.stockapp.domain.stock.dto.DailyPriceData;
@@ -46,7 +47,15 @@ public class StockMetricContextFactory {
                         stock, baseDate, requirements.maxDailyPeriod())
                 : List.of();
 
-        return new StockMetricContext(stock, baseDate, snapshot, dailyPrices);
+        try {
+            return new StockMetricContext(
+                    stock, baseDate, snapshot, dailyPrices);
+        } catch (IllegalArgumentException | NullPointerException exception) {
+            throw new ScreeningStockDataException(
+                    "invalid screening market data for stock: "
+                            + stock.getStockCode(),
+                    exception);
+        }
     }
 
     private void validateInputs(

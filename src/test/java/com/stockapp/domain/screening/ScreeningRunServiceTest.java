@@ -15,6 +15,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataAccessResourceFailureException;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -336,6 +337,103 @@ class ScreeningRunServiceTest {
                 .evaluate(secondCondition, secondContext);
         verify(screeningExecutionService, never()).evaluate(
                 firstCondition, thirdContext);
+    }
+
+    @Test
+    void isolatesStockDataFailureAndContinuesWithNextStock() {
+        prepareConditions();
+        when(stockMetricContextFactory.createWithRequirements(
+                firstStock, requirements, BASE_DATE))
+                .thenReturn(firstContext);
+        ScreeningStockDataException stockFailure =
+                new ScreeningStockDataException(
+                        "invalid market data",
+                        new IllegalArgumentException("invalid snapshot"));
+        when(stockMetricContextFactory.createWithRequirements(
+                secondStock, requirements, BASE_DATE))
+                .thenThrow(stockFailure);
+        when(stockMetricContextFactory.createWithRequirements(
+                thirdStock, requirements, BASE_DATE))
+                .thenReturn(thirdContext);
+        when(screeningExecutionService.evaluate(
+                firstCondition, firstContext))
+                .thenReturn(true);
+
+        ScreeningRunResult result = service.run(
+                List.of(firstStock, secondStock, thirdStock), BASE_DATE);
+
+        assertThat(result.totalStockCount()).isEqualTo(3);
+        assertThat(result.evaluatedStockCount()).isEqualTo(2);
+        assertThat(result.candidateStockCount()).isEqualTo(1);
+        assertThat(result.totalMatchCount()).isEqualTo(1);
+        assertThat(result.failedStockCount()).isEqualTo(1);
+        assertThat(result.candidates())
+                .extracting(candidate -> candidate.stock().getStockCode())
+                .containsExactly("000660");
+        assertThat(result.failures()).singleElement().satisfies(failure -> {
+            assertThat(failure.stockCode()).isEqualTo("005930");
+            assertThat(failure.stockName()).isEqualTo("stock-005930");
+            assertThat(failure.reason())
+                    .isEqualTo("STOCK_MARKET_DATA_INVALID");
+            assertThat(failure.message()).isEqualTo("invalid market data");
+        });
+        verify(screeningExecutionService).evaluate(
+                secondCondition, thirdContext);
+    }
+
+    @Test
+    void discardsPartialMatchesForExplicitStockDataFailure() {
+        prepareSingleStockRun();
+        when(screeningExecutionService.evaluate(
+                firstCondition, firstContext))
+                .thenReturn(true);
+        ScreeningStockDataException failure =
+                new ScreeningStockDataException(null,
+                        new IllegalArgumentException("invalid data"));
+        lenient().doThrow(failure).when(screeningExecutionService)
+                .evaluate(secondCondition, firstContext);
+
+        ScreeningRunResult result = service.run(
+                List.of(firstStock), BASE_DATE);
+
+        assertThat(result.evaluatedStockCount()).isZero();
+        assertThat(result.candidates()).isEmpty();
+        assertThat(result.totalMatchCount()).isZero();
+        assertThat(result.failedStockCount()).isEqualTo(1);
+        assertThat(result.failures().getFirst().message())
+                .isEqualTo("종목 Screening 시장 데이터가 유효하지 않습니다.");
+    }
+
+    @Test
+    void keepsConditionStructureErrorAsGlobalFailure() {
+        prepareSingleStockRun();
+        IllegalArgumentException failure = new IllegalArgumentException(
+                "invalid condition structure");
+        lenient().doThrow(failure).when(screeningExecutionService)
+                .evaluate(secondCondition, firstContext);
+
+        assertThatThrownBy(() -> service.run(
+                List.of(firstStock, secondStock, thirdStock), BASE_DATE))
+                .isSameAs(failure);
+        verify(stockMetricContextFactory, never()).createWithRequirements(
+                secondStock, requirements, BASE_DATE);
+    }
+
+    @Test
+    void keepsDataAccessErrorAsGlobalFailure() {
+        prepareConditions();
+        DataAccessResourceFailureException failure =
+                new DataAccessResourceFailureException("database unavailable");
+        when(stockMetricContextFactory.createWithRequirements(
+                firstStock, requirements, BASE_DATE))
+                .thenThrow(failure);
+
+        assertThatThrownBy(() -> service.run(
+                List.of(firstStock, secondStock), BASE_DATE))
+                .isSameAs(failure);
+        verify(stockMetricContextFactory, never()).createWithRequirements(
+                secondStock, requirements, BASE_DATE);
+        verifyNoInteractions(screeningExecutionService);
     }
 
     private void prepareSingleStockRun() {

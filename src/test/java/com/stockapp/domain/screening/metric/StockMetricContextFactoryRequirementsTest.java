@@ -1,5 +1,6 @@
 package com.stockapp.domain.screening.metric;
 
+import com.stockapp.domain.screening.ScreeningStockDataException;
 import com.stockapp.domain.stock.MarketType;
 import com.stockapp.domain.stock.Stock;
 import com.stockapp.domain.stock.StockMarketDataQueryService;
@@ -145,7 +146,8 @@ class StockMetricContextFactoryRequirementsTest {
 
         assertThatThrownBy(() -> factory.createWithRequirements(stock,
                 new ScreeningDataRequirements(true, 0), BASE_DATE))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(ScreeningStockDataException.class)
+                .hasCauseInstanceOf(IllegalArgumentException.class);
     }
 
     private LatestStockSnapshot snapshot() {

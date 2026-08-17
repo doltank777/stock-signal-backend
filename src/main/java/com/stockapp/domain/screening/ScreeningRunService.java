@@ -1,6 +1,7 @@
 package com.stockapp.domain.screening;
 
 import com.stockapp.domain.screening.dto.ScreeningCandidate;
+import com.stockapp.domain.screening.dto.ScreeningFailure;
 import com.stockapp.domain.screening.dto.ScreeningMatch;
 import com.stockapp.domain.screening.dto.ScreeningRunResult;
 import com.stockapp.domain.screening.metric.ScreeningDataRequirementAnalyzer;
@@ -17,11 +18,17 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
 public class ScreeningRunService {
+
+    private static final String STOCK_DATA_FAILURE_REASON =
+            "STOCK_MARKET_DATA_INVALID";
+    private static final String STOCK_DATA_FAILURE_MESSAGE =
+            "종목 Screening 시장 데이터가 유효하지 않습니다.";
 
     private final SearchConditionRepository searchConditionRepository;
     private final ScreeningDataRequirementAnalyzer requirementAnalyzer;
@@ -38,7 +45,8 @@ public class ScreeningRunService {
         Instant startedAt = Instant.now(clock);
         if (stocks.isEmpty()) {
             return completedResult(
-                    baseDate, startedAt, 0, 0, List.of());
+                    baseDate, startedAt,
+                    0, 0, List.of(), List.of());
         }
 
         List<SearchCondition> executableConditions = searchConditionRepository
@@ -46,30 +54,50 @@ public class ScreeningRunService {
         if (executableConditions.isEmpty()) {
             return completedResult(
                     baseDate, startedAt,
-                    stocks.size(), stocks.size(), List.of());
+                    stocks.size(), stocks.size(),
+                    List.of(), List.of());
         }
 
         ScreeningDataRequirements requirements = requirementAnalyzer
                 .analyze(executableConditions);
         List<ScreeningCandidate> candidates = new ArrayList<>();
+        List<ScreeningFailure> failures = new ArrayList<>();
         int evaluatedStockCount = 0;
 
         for (Stock stock : stocks) {
-            StockMetricContext context = stockMetricContextFactory
-                    .createWithRequirements(stock, requirements, baseDate);
-            List<ScreeningMatch> matches = evaluateConditions(
-                    executableConditions, context);
-
-            if (!matches.isEmpty()) {
-                candidates.add(new ScreeningCandidate(
-                        stock, baseDate, matches));
+            try {
+                evaluateStock(
+                        stock,
+                        baseDate,
+                        executableConditions,
+                        requirements).ifPresent(candidates::add);
+                evaluatedStockCount++;
+            } catch (ScreeningStockDataException exception) {
+                failures.add(toFailure(stock, exception));
             }
-            evaluatedStockCount++;
         }
 
         return completedResult(
                 baseDate, startedAt,
-                stocks.size(), evaluatedStockCount, candidates);
+                stocks.size(), evaluatedStockCount,
+                candidates, failures);
+    }
+
+    private Optional<ScreeningCandidate> evaluateStock(
+            Stock stock,
+            LocalDate baseDate,
+            List<SearchCondition> conditions,
+            ScreeningDataRequirements requirements
+    ) {
+        StockMetricContext context = stockMetricContextFactory
+                .createWithRequirements(stock, requirements, baseDate);
+        List<ScreeningMatch> matches = evaluateConditions(
+                conditions, context);
+        if (matches.isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of(new ScreeningCandidate(
+                stock, baseDate, matches));
     }
 
     private List<ScreeningMatch> evaluateConditions(
@@ -94,7 +122,8 @@ public class ScreeningRunService {
             Instant startedAt,
             int totalStockCount,
             int evaluatedStockCount,
-            List<ScreeningCandidate> candidates
+            List<ScreeningCandidate> candidates,
+            List<ScreeningFailure> failures
     ) {
         return new ScreeningRunResult(
                 baseDate,
@@ -103,7 +132,22 @@ public class ScreeningRunService {
                 totalStockCount,
                 evaluatedStockCount,
                 candidates,
-                List.of());
+                failures);
+    }
+
+    private ScreeningFailure toFailure(
+            Stock stock,
+            ScreeningStockDataException exception
+    ) {
+        String message = exception.getMessage();
+        if (message == null || message.isBlank()) {
+            message = STOCK_DATA_FAILURE_MESSAGE;
+        }
+        return new ScreeningFailure(
+                stock.getStockCode(),
+                stock.getStockName(),
+                STOCK_DATA_FAILURE_REASON,
+                message);
     }
 
     private void validateInputs(
