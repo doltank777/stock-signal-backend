@@ -51,5 +51,11 @@ daily-price-update:
   # 비워 두면 KOSPI/KOSDAQ 전체 종목을 대상으로 합니다.
   stock-code:
 
+screening-run:
+  # 쉼표로 구분한 1~50개의 KOSPI/KOSDAQ 종목 코드를 반드시 지정합니다.
+  stock-codes:
+  # ISO 형식(YYYY-MM-DD)의 기준일을 반드시 지정합니다.
+  base-date:
+
 stock:
   import-key: "your-import-key"

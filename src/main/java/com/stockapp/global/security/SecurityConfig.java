@@ -28,7 +28,7 @@ public class SecurityConfig {
         private String[] allowedOrigins;
 
         @Bean
-        @Profile("!daily-price-load & !daily-price-update")
+        @Profile("!daily-price-load & !daily-price-update & !screening-run")
         public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 
                 http

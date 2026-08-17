@@ -1,5 +1,6 @@
 package com.stockapp;
 
+import com.stockapp.domain.screening.ScreeningRunRunner;
 import com.stockapp.domain.stock.DailyPriceInitialLoadRunner;
 import com.stockapp.domain.stock.DailyPriceUpdateRunner;
 import com.stockapp.domain.stock.DailyPriceUpdateScheduler;
@@ -107,6 +108,33 @@ class DailyPriceLoadProfileIsolationTest {
     }
 
     @Test
+    void screeningRunProfileEnablesOnlyScreeningRunnerAndIsNonWeb() throws IOException {
+        StandardEnvironment environment = environment("local", "screening-run");
+
+        assertThat(matchesProfile(ScreeningRunRunner.class, environment)).isTrue();
+        assertThat(matchesProfile(DailyPriceInitialLoadRunner.class, environment)).isFalse();
+        assertThat(matchesProfile(DailyPriceUpdateRunner.class, environment)).isFalse();
+        assertThat(matchesProfile(DailyPriceUpdateScheduler.class, environment)).isFalse();
+        assertThat(matchesProfile(KisWebSocketStartupRunner.class, environment)).isFalse();
+        assertThat(matchesProfile(StockPriceScheduler.class, environment)).isFalse();
+        assertThat(matchesProfile(securityFilterChainMethod(), environment)).isFalse();
+
+        List<PropertySource<?>> propertySources = new YamlPropertySourceLoader().load(
+                "screening-run",
+                new org.springframework.core.io.ClassPathResource(
+                        "application-screening-run.yaml"));
+        PropertySource<?> properties = propertySources.getFirst();
+        assertThat(properties.getProperty("spring.main.web-application-type"))
+                .isEqualTo("none");
+        assertThat(properties.getProperty("spring.devtools.restart.enabled"))
+                .isEqualTo(false);
+        assertThat(properties.getProperty("spring.devtools.livereload.enabled"))
+                .isEqualTo(false);
+        assertThat(properties.getProperty("spring.devtools.add-properties"))
+                .isEqualTo(false);
+    }
+
+    @Test
     void applicationClosesContextAfterDailyPriceLoadStartupCompletes() {
         ConfigurableApplicationContext context = org.mockito.Mockito.mock(
                 ConfigurableApplicationContext.class);
@@ -125,6 +153,19 @@ class DailyPriceLoadProfileIsolationTest {
                 ConfigurableApplicationContext.class);
         MockEnvironment environment = new MockEnvironment();
         environment.setActiveProfiles("daily-price-update");
+        when(context.getEnvironment()).thenReturn(environment);
+
+        StockSignalBackendApplication.closeAfterBatch(context);
+
+        verify(context).close();
+    }
+
+    @Test
+    void applicationClosesContextAfterScreeningRunStartupCompletes() {
+        ConfigurableApplicationContext context = org.mockito.Mockito.mock(
+                ConfigurableApplicationContext.class);
+        MockEnvironment environment = new MockEnvironment();
+        environment.setActiveProfiles("screening-run");
         when(context.getEnvironment()).thenReturn(environment);
 
         StockSignalBackendApplication.closeAfterBatch(context);

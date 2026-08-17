@@ -15,7 +15,7 @@ import java.util.List;
 
 @Slf4j
 @Component
-@Profile("!daily-price-load & !daily-price-update")
+@Profile("!daily-price-load & !daily-price-update & !screening-run")
 @RequiredArgsConstructor
 public class StockPriceScheduler {
 

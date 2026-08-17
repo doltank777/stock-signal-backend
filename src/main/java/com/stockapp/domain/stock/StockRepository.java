@@ -18,6 +18,11 @@ public interface StockRepository extends JpaRepository<Stock, Long> {
 
     List<Stock> findByMarketTypeInOrderByIdAsc(List<MarketType> marketTypes);
 
+    List<Stock> findByStockCodeInAndMarketTypeIn(
+            List<String> stockCodes,
+            List<MarketType> marketTypes
+    );
+
     List<Stock> findByStockNameContainingOrStockCodeContaining(
             String stockName,
             String stockCode

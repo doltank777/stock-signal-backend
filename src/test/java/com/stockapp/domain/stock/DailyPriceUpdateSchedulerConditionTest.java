@@ -51,4 +51,15 @@ class DailyPriceUpdateSchedulerConditionTest {
                 .run(context -> assertThat(context)
                         .doesNotHaveBean(DailyPriceUpdateScheduler.class));
     }
+
+    @Test
+    void schedulerIsDisabledDuringScreeningRun() {
+        contextRunner
+                .withInitializer(context ->
+                        context.getEnvironment().setActiveProfiles("screening-run"))
+                .withPropertyValues(
+                        "kis.daily-price.update.scheduler.enabled=true")
+                .run(context -> assertThat(context)
+                        .doesNotHaveBean(DailyPriceUpdateScheduler.class));
+    }
 }
