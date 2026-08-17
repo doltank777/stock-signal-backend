@@ -153,6 +153,25 @@ class ScreeningDataRequirementAnalyzerTest {
                 .isEqualTo(new ScreeningDataRequirements(true, 0));
     }
 
+    @Test
+    void combinesMaximumPeriodFromLeftAndRightMetricsAndExcludesSignal() {
+        SearchCondition condition = condition(
+                valueRule(ScreeningStage.SCREENING,
+                        ScreeningMetric.AVERAGE_VOLUME, 5),
+                valueRule(ScreeningStage.SCREENING,
+                        ScreeningMetric.MOVING_AVERAGE, 20),
+                valueRule(ScreeningStage.SCREENING,
+                        ScreeningMetric.VOLUME_RATIO, 60),
+                metricRule(ScreeningStage.SCREENING,
+                        ScreeningMetric.CURRENT_PRICE, null,
+                        ScreeningMetric.MOVING_AVERAGE, 120),
+                valueRule(ScreeningStage.SIGNAL,
+                        ScreeningMetric.MOVING_AVERAGE, 240));
+
+        assertThat(analyzer.analyze(condition))
+                .isEqualTo(new ScreeningDataRequirements(true, 120));
+    }
+
     private SearchCondition condition(SearchConditionRule... rules) {
         return condition(true, 100, 80, false, rules);
     }
