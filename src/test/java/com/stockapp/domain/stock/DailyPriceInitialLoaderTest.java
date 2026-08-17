@@ -9,12 +9,18 @@ import com.stockapp.global.config.KisProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.annotation.Profile;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.ResourceAccessException;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -266,6 +272,51 @@ class DailyPriceInitialLoaderTest {
 
         assertThat(result.getFailedStockCount()).isEqualTo(1);
         assertThat(result.getApiCallCount()).isEqualTo(1);
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {401, 403})
+    void authenticationHttpFailureAbortsEntireLoad(int statusCode) {
+        when(stockRepository.findByMarketTypeInOrderByIdAsc(anyList()))
+                .thenReturn(List.of(kospi, kosdaq));
+        when(dailyPriceRepository.countByStockAndTradeDateLessThanEqual(
+                kospi, BASE_DATE)).thenReturn(0L);
+        HttpClientErrorException failure = HttpClientErrorException.create(
+                HttpStatus.valueOf(statusCode), "authentication failed",
+                HttpHeaders.EMPTY, new byte[0], StandardCharsets.UTF_8);
+        when(client.getDailyPrices(kospi.getStockCode(),
+                BASE_DATE.minusMonths(6), BASE_DATE)).thenThrow(failure);
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                        () -> loader.load(BASE_DATE))
+                .isSameAs(failure);
+
+        verify(dailyPriceRepository, never())
+                .countByStockAndTradeDateLessThanEqual(kosdaq, BASE_DATE);
+        verify(client, never()).getDailyPrices(
+                org.mockito.ArgumentMatchers.eq(kosdaq.getStockCode()),
+                any(), any());
+    }
+
+    @Test
+    void interruptDuringRequestDelayAbortsEntireLoadAndRestoresFlag()
+            throws Exception {
+        properties.getDailyPrice().setRequestDelayMs(1);
+        prepareOneStock(kospi, 0L);
+        List<KisDailyPrice> response = List.of(price("2026-08-10"));
+        when(client.getDailyPrices(any(), any(), any())).thenReturn(response);
+        when(writer.write(kospi, response)).thenReturn(save(1, 1));
+        org.mockito.Mockito.doThrow(new InterruptedException("interrupted"))
+                .when(sleeper).sleep(1L);
+
+        try {
+            org.assertj.core.api.Assertions.assertThatThrownBy(
+                            () -> loader.load(BASE_DATE))
+                    .isInstanceOf(RuntimeException.class);
+            assertThat(Thread.currentThread().isInterrupted()).isTrue();
+        } finally {
+            Thread.interrupted();
+        }
     }
 
     @Test

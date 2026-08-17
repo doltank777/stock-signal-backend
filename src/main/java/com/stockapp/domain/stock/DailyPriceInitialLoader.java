@@ -77,6 +77,10 @@ public class DailyPriceInitialLoader {
                 log.warn("일봉 최초 적재가 인터럽트되어 중단됩니다.");
                 throw e;
             } catch (Exception e) {
+                if (isAuthenticationHttpFailure(e)) {
+                    log.error("KIS 일봉 인증 실패로 전체 최초 적재를 중단합니다.", e);
+                    throw e;
+                }
                 summary.failed++;
                 String code = e instanceof KisApiException kisException
                         ? kisException.getMessageCode() : null;
@@ -90,7 +94,13 @@ public class DailyPriceInitialLoader {
             int processed = index + 1;
             if (processed % config.getProgressLogInterval() == 0
                     || processed == stocks.size()) {
-                log.info("일봉 최초 적재 진행 - {}/{}", processed, stocks.size());
+                log.info("daily-price-load progress - processed={}/{}, completed={}, "
+                                + "skipped={}, partial={}, failed={}, apiCalls={}, "
+                                + "savedRows={}, elapsedMs={}",
+                        processed, stocks.size(), summary.completed,
+                        summary.skipped, summary.partial, summary.failed,
+                        summary.apiCalls, summary.saved,
+                        Duration.between(summary.startedAt, Instant.now(clock)).toMillis());
             }
         }
 
@@ -238,6 +248,14 @@ public class DailyPriceInitialLoader {
             return status.value() == 429 || status.is5xxServerError();
         }
         return false;
+    }
+
+    private boolean isAuthenticationHttpFailure(Exception exception) {
+        if (!(exception instanceof RestClientResponseException responseException)) {
+            return false;
+        }
+        int status = responseException.getStatusCode().value();
+        return status == 401 || status == 403;
     }
 
     private void markPartial(Stock stock, LoadSummary summary, String reason) {
