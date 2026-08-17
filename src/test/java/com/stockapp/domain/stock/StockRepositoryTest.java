@@ -29,6 +29,23 @@ class StockRepositoryTest {
                 .containsExactlyInAnyOrder("005930", "035720");
     }
 
+    @Test
+    void allMarketLookupExcludesKonexAndReturnsIdAscending() {
+        Stock first = stockRepository.save(
+                stock("005930", "Samsung", MarketType.KOSPI));
+        Stock second = stockRepository.save(
+                stock("035720", "Kakao", MarketType.KOSDAQ));
+        stockRepository.save(stock("950000", "Konex", MarketType.KONEX));
+
+        List<Stock> result = stockRepository.findByMarketTypeInOrderByIdAsc(
+                List.of(MarketType.KOSPI, MarketType.KOSDAQ));
+
+        assertThat(result).containsExactly(first, second);
+        assertThat(result)
+                .extracting(Stock::getMarketType)
+                .containsOnly(MarketType.KOSPI, MarketType.KOSDAQ);
+    }
+
     private Stock stock(String code, String name, MarketType marketType) {
         return Stock.builder()
                 .stockCode(code)

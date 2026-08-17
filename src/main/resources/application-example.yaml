@@ -54,6 +54,8 @@ daily-price-update:
 screening-run:
   # 쉼표로 구분한 1~50개의 KOSPI/KOSDAQ 종목 코드를 반드시 지정합니다.
   stock-codes:
+  # 전체시장 실행 시 stock-codes는 비우고 true로 명시합니다.
+  all-stocks: false
   # ISO 형식(YYYY-MM-DD)의 기준일을 반드시 지정합니다.
   base-date:
 

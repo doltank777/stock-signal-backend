@@ -23,11 +23,13 @@ import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.same;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
@@ -434,6 +436,25 @@ class ScreeningRunServiceTest {
         verify(stockMetricContextFactory, never()).createWithRequirements(
                 secondStock, requirements, BASE_DATE);
         verifyNoInteractions(screeningExecutionService);
+    }
+
+    @Test
+    void processesLargeStockListWithoutChangingBusinessResult() {
+        List<Stock> stocks = IntStream.rangeClosed(1, 101)
+                .mapToObj(number -> stock(
+                        (long) number, "%06d".formatted(number)))
+                .toList();
+        prepareConditions();
+        when(stockMetricContextFactory.createWithRequirements(
+                any(Stock.class), same(requirements), same(BASE_DATE)))
+                .thenReturn(firstContext);
+
+        ScreeningRunResult result = service.run(stocks, BASE_DATE);
+
+        assertThat(result.totalStockCount()).isEqualTo(101);
+        assertThat(result.evaluatedStockCount()).isEqualTo(101);
+        assertThat(result.candidateStockCount()).isZero();
+        assertThat(result.failedStockCount()).isZero();
     }
 
     private void prepareSingleStockRun() {

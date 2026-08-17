@@ -1,6 +1,9 @@
 package com.stockapp.domain.screening;
 
 import com.stockapp.domain.screening.dto.ScreeningRunResult;
+import com.stockapp.domain.screening.dto.ScreeningCandidate;
+import com.stockapp.domain.screening.dto.ScreeningFailure;
+import com.stockapp.domain.screening.dto.ScreeningMatch;
 import com.stockapp.domain.stock.MarketType;
 import com.stockapp.domain.stock.Stock;
 import com.stockapp.domain.stock.StockRepository;
@@ -19,6 +22,7 @@ import java.util.stream.IntStream;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -145,6 +149,118 @@ class ScreeningRunRunnerTest {
                 .containsExactly("035420", "005930", "000660");
     }
 
+    @Test
+    void runsAllMarketStocksInRepositoryOrderWithoutLimitedLookup() throws Exception {
+        List<Stock> stocks = IntStream.rangeClosed(1, 100)
+                .mapToObj(number -> stock(
+                        "%06d".formatted(number), "stock-" + number,
+                        number % 2 == 0 ? MarketType.KOSPI : MarketType.KOSDAQ))
+                .toList();
+        when(stockRepository.findByMarketTypeInOrderByIdAsc(
+                List.of(MarketType.KOSPI, MarketType.KOSDAQ)))
+                .thenReturn(stocks);
+        when(screeningRunService.run(stocks, BASE_DATE))
+                .thenReturn(result(100));
+
+        runner(null, true, "2026-08-13").run(arguments());
+
+        verify(stockRepository, times(1)).findByMarketTypeInOrderByIdAsc(
+                List.of(MarketType.KOSPI, MarketType.KOSDAQ));
+        verify(stockRepository, never()).findByStockCodeInAndMarketTypeIn(
+                org.mockito.ArgumentMatchers.anyList(),
+                org.mockito.ArgumentMatchers.anyList());
+        verify(screeningRunService, times(1)).run(stocks, BASE_DATE);
+    }
+
+    @Test
+    void allowsBlankStockCodesInAllMarketMode() throws Exception {
+        Stock samsung = stock("005930", "Samsung", MarketType.KOSPI);
+        when(stockRepository.findByMarketTypeInOrderByIdAsc(
+                List.of(MarketType.KOSPI, MarketType.KOSDAQ)))
+                .thenReturn(List.of(samsung));
+        when(screeningRunService.run(List.of(samsung), BASE_DATE))
+                .thenReturn(result(1));
+
+        runner("   ", true, "2026-08-13").run(arguments());
+
+        verify(screeningRunService).run(List.of(samsung), BASE_DATE);
+    }
+
+    @Test
+    void rejectsMalformedStockCodesEvenInAllMarketMode() {
+        assertThatThrownBy(() -> runner(
+                ",,,", true, "2026-08-13").run(arguments()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("empty tokens");
+        verify(stockRepository, never()).findByMarketTypeInOrderByIdAsc(
+                org.mockito.ArgumentMatchers.anyList());
+        verify(screeningRunService, never()).run(
+                org.mockito.ArgumentMatchers.anyList(),
+                org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void rejectsStockCodesAndAllMarketModeTogether() {
+        assertThatThrownBy(() -> runner(
+                "005930", true, "2026-08-13").run(arguments()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("mutually exclusive");
+        verify(stockRepository, never()).findByMarketTypeInOrderByIdAsc(
+                org.mockito.ArgumentMatchers.anyList());
+        verify(stockRepository, never()).findByStockCodeInAndMarketTypeIn(
+                org.mockito.ArgumentMatchers.anyList(),
+                org.mockito.ArgumentMatchers.anyList());
+        verify(screeningRunService, never()).run(
+                org.mockito.ArgumentMatchers.anyList(),
+                org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void rejectsEmptyAllMarketTarget() {
+        when(stockRepository.findByMarketTypeInOrderByIdAsc(
+                List.of(MarketType.KOSPI, MarketType.KOSDAQ)))
+                .thenReturn(List.of());
+
+        assertThatThrownBy(() -> runner(
+                null, true, "2026-08-13").run(arguments()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("no KOSPI/KOSDAQ stocks");
+        verify(screeningRunService, never()).run(
+                org.mockito.ArgumentMatchers.anyList(),
+                org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void rejectsMissingBaseDateInAllMarketMode() {
+        assertAllMarketBaseDateFailure(null, "base-date is required");
+    }
+
+    @Test
+    void rejectsBlankBaseDateInAllMarketMode() {
+        assertAllMarketBaseDateFailure("   ", "base-date is required");
+    }
+
+    @Test
+    void rejectsInvalidBaseDateInAllMarketMode() {
+        assertAllMarketBaseDateFailure("2026/08/13", "YYYY-MM-DD");
+    }
+
+    @Test
+    void consumesAllMarketCandidatesAndFailuresWithoutThrowing() throws Exception {
+        Stock samsung = stock("005930", "Samsung", MarketType.KOSPI);
+        Stock hynix = stock("000660", "SK hynix", MarketType.KOSPI);
+        List<Stock> stocks = List.of(samsung, hynix);
+        when(stockRepository.findByMarketTypeInOrderByIdAsc(
+                List.of(MarketType.KOSPI, MarketType.KOSDAQ)))
+                .thenReturn(stocks);
+        when(screeningRunService.run(stocks, BASE_DATE))
+                .thenReturn(resultWithCandidateAndFailure(samsung));
+
+        runner(null, true, "2026-08-13").run(arguments());
+
+        verify(screeningRunService).run(stocks, BASE_DATE);
+    }
+
     private void assertValidationFailure(
             String stockCodes,
             String baseDate,
@@ -163,8 +279,32 @@ class ScreeningRunRunnerTest {
     }
 
     private ScreeningRunRunner runner(String stockCodes, String baseDate) {
+        return runner(stockCodes, false, baseDate);
+    }
+
+    private ScreeningRunRunner runner(
+            String stockCodes,
+            boolean allStocks,
+            String baseDate
+    ) {
         return new ScreeningRunRunner(
-                screeningRunService, stockRepository, stockCodes, baseDate);
+                screeningRunService, stockRepository,
+                stockCodes, allStocks, baseDate);
+    }
+
+    private void assertAllMarketBaseDateFailure(
+            String baseDate,
+            String message
+    ) {
+        assertThatThrownBy(() -> runner(
+                null, true, baseDate).run(arguments()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining(message);
+        verify(stockRepository, never()).findByMarketTypeInOrderByIdAsc(
+                org.mockito.ArgumentMatchers.anyList());
+        verify(screeningRunService, never()).run(
+                org.mockito.ArgumentMatchers.anyList(),
+                org.mockito.ArgumentMatchers.any());
     }
 
     private DefaultApplicationArguments arguments() {
@@ -176,6 +316,20 @@ class ScreeningRunRunnerTest {
         return new ScreeningRunResult(
                 BASE_DATE, startedAt, startedAt.plusMillis(100),
                 stockCount, stockCount, List.of(), List.of());
+    }
+
+    private ScreeningRunResult resultWithCandidateAndFailure(Stock stock) {
+        SearchCondition condition = SearchCondition.create(
+                "condition", null, true, 1, 10, true, null);
+        ScreeningCandidate candidate = new ScreeningCandidate(
+                stock, BASE_DATE,
+                List.of(new ScreeningMatch(condition, 10, 1, true)));
+        Instant startedAt = Instant.parse("2026-08-13T00:00:00Z");
+        return new ScreeningRunResult(
+                BASE_DATE, startedAt, startedAt.plusMillis(100),
+                2, 1, List.of(candidate),
+                List.of(new ScreeningFailure(
+                        "000660", "SK hynix", "DATA_INVALID", "missing data")));
     }
 
     private Stock stock(String code, String name, MarketType marketType) {

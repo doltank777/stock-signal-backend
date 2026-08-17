@@ -10,9 +10,11 @@ import com.stockapp.domain.screening.metric.StockMetricContext;
 import com.stockapp.domain.screening.metric.StockMetricContextFactory;
 import com.stockapp.domain.stock.Stock;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -23,7 +25,11 @@ import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ScreeningRunService {
+
+    private static final int PROGRESS_LOG_INTERVAL = 100;
+    private static final int PROGRESS_LOG_MIN_TOTAL = 51;
 
     private static final String STOCK_DATA_FAILURE_REASON =
             "STOCK_MARKET_DATA_INVALID";
@@ -64,7 +70,8 @@ public class ScreeningRunService {
         List<ScreeningFailure> failures = new ArrayList<>();
         int evaluatedStockCount = 0;
 
-        for (Stock stock : stocks) {
+        for (int index = 0; index < stocks.size(); index++) {
+            Stock stock = stocks.get(index);
             try {
                 evaluateStock(
                         stock,
@@ -75,12 +82,37 @@ public class ScreeningRunService {
             } catch (ScreeningStockDataException exception) {
                 failures.add(toFailure(stock, exception));
             }
+            logProgressIfNeeded(
+                    index + 1, stocks.size(), candidates.size(),
+                    failures.size(), startedAt);
         }
 
         return completedResult(
                 baseDate, startedAt,
                 stocks.size(), evaluatedStockCount,
                 candidates, failures);
+    }
+
+    private void logProgressIfNeeded(
+            int processedStockCount,
+            int totalStockCount,
+            int candidateStockCount,
+            int failedStockCount,
+            Instant startedAt
+    ) {
+        if (totalStockCount < PROGRESS_LOG_MIN_TOTAL) {
+            return;
+        }
+        if (processedStockCount % PROGRESS_LOG_INTERVAL != 0
+                && processedStockCount != totalStockCount) {
+            return;
+        }
+        long elapsedMs = Duration.between(
+                startedAt, Instant.now(clock)).toMillis();
+        log.info("screening progress - processed={}/{}, candidates={}, "
+                        + "failures={}, elapsedMs={}",
+                processedStockCount, totalStockCount, candidateStockCount,
+                failedStockCount, elapsedMs);
     }
 
     private Optional<ScreeningCandidate> evaluateStock(

@@ -35,30 +35,58 @@ public class ScreeningRunRunner implements ApplicationRunner {
     private final ScreeningRunService screeningRunService;
     private final StockRepository stockRepository;
     private final String stockCodes;
+    private final boolean allStocks;
     private final String baseDate;
 
     public ScreeningRunRunner(
             ScreeningRunService screeningRunService,
             StockRepository stockRepository,
             @Value("${screening-run.stock-codes:}") String stockCodes,
+            @Value("${screening-run.all-stocks:false}") boolean allStocks,
             @Value("${screening-run.base-date:}") String baseDate
     ) {
         this.screeningRunService = screeningRunService;
         this.stockRepository = stockRepository;
         this.stockCodes = stockCodes;
+        this.allStocks = allStocks;
         this.baseDate = baseDate;
     }
 
     @Override
     public void run(ApplicationArguments args) {
-        List<String> requestedStockCodes = parseStockCodes(stockCodes);
         LocalDate parsedBaseDate = parseBaseDate(baseDate);
-        List<Stock> stocks = findStocksInInputOrder(requestedStockCodes);
+        List<Stock> stocks = allStocks
+                ? findAllMarketStocks()
+                : findLimitedStocks();
 
+        if (allStocks) {
+            log.warn("screening-run all-market start - stockCount: {}, baseDate: {}",
+                    stocks.size(), parsedBaseDate);
+        }
         log.info("screening-run 시작 - stockCount: {}, baseDate: {}",
                 stocks.size(), parsedBaseDate);
         ScreeningRunResult result = screeningRunService.run(stocks, parsedBaseDate);
-        logResult(result);
+        logResult(result, allStocks);
+    }
+
+    private List<Stock> findLimitedStocks() {
+        List<String> requestedStockCodes = parseStockCodes(stockCodes);
+        return findStocksInInputOrder(requestedStockCodes);
+    }
+
+    private List<Stock> findAllMarketStocks() {
+        if (stockCodes != null && !stockCodes.isBlank()) {
+            parseStockCodes(stockCodes);
+            throw new IllegalArgumentException(
+                    "screening-run.stock-codes and all-stocks=true are mutually exclusive");
+        }
+        List<Stock> stocks = stockRepository
+                .findByMarketTypeInOrderByIdAsc(TARGET_MARKETS);
+        if (stocks.isEmpty()) {
+            throw new IllegalStateException(
+                    "no KOSPI/KOSDAQ stocks found for all-stocks screening");
+        }
+        return stocks;
     }
 
     private List<String> parseStockCodes(String value) {
@@ -124,7 +152,7 @@ public class ScreeningRunRunner implements ApplicationRunner {
                 .toList();
     }
 
-    private void logResult(ScreeningRunResult result) {
+    private void logResult(ScreeningRunResult result, boolean allMarket) {
         long elapsedMs = Duration.between(
                 result.startedAt(), result.finishedAt()).toMillis();
         log.info("screening-run 완료 - baseDate: {}, inputStockCount: {}, "
@@ -136,6 +164,16 @@ public class ScreeningRunRunner implements ApplicationRunner {
 
         for (ScreeningCandidate candidate : result.candidates()) {
             Stock stock = candidate.stock();
+            if (allMarket) {
+                long realtimeMatchCount = candidate.matches().stream()
+                        .filter(ScreeningMatch::realtimeEnabled)
+                        .count();
+                log.info("screening candidate - stockCode: {}, matchCount: {}, "
+                                + "realtimeMatchCount: {}",
+                        stock.getStockCode(), candidate.matches().size(),
+                        realtimeMatchCount);
+                continue;
+            }
             log.info("screening candidate - stockCode: {}, stockName: {}",
                     stock.getStockCode(), stock.getStockName());
             for (ScreeningMatch match : candidate.matches()) {
