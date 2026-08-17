@@ -44,6 +44,7 @@ class StockMetricContextFactoryTest {
 
     private Stock stock;
     private StockMetricContextFactory factory;
+    private ScreeningDataRequirementAnalyzer requirementAnalyzer;
 
     @BeforeEach
     void setUp() {
@@ -53,7 +54,9 @@ class StockMetricContextFactoryTest {
                 .stockName("Samsung Electronics")
                 .marketType(MarketType.KOSPI)
                 .build();
-        factory = new StockMetricContextFactory(queryService);
+        requirementAnalyzer = new ScreeningDataRequirementAnalyzer();
+        factory = new StockMetricContextFactory(
+                queryService, requirementAnalyzer);
     }
 
     @Test

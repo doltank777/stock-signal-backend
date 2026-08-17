@@ -25,6 +25,19 @@ public class ScreeningExecutionService {
 
         StockMetricContext context = stockMetricContextFactory.create(
                 stock, condition, baseDate);
+        return evaluate(condition, context);
+    }
+
+    public boolean evaluate(
+            SearchCondition condition,
+            StockMetricContext context
+    ) {
+        if (condition == null) {
+            throw new IllegalArgumentException("condition is required");
+        }
+        if (context == null) {
+            throw new IllegalArgumentException("context is required");
+        }
         return screeningConditionEvaluator.evaluate(condition, context);
     }
 

@@ -124,4 +124,47 @@ class ScreeningExecutionServiceTest {
                 stockMetricContextFactory,
                 screeningConditionEvaluator);
     }
+
+    @Test
+    void evaluatesPreparedContextWithoutCallingFactory() {
+        when(screeningConditionEvaluator.evaluate(condition, context))
+                .thenReturn(true);
+
+        assertThat(service.evaluate(condition, context)).isTrue();
+
+        verify(screeningConditionEvaluator).evaluate(condition, context);
+        verifyNoInteractions(stockMetricContextFactory);
+    }
+
+    @Test
+    void returnsFalseFromPreparedContextEvaluation() {
+        when(screeningConditionEvaluator.evaluate(condition, context))
+                .thenReturn(false);
+
+        assertThat(service.evaluate(condition, context)).isFalse();
+    }
+
+    @Test
+    void rejectsNullPreparedContextInputsWithoutCallingDependencies() {
+        assertThatThrownBy(() -> service.evaluate(null, context))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.evaluate(condition, null))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        verifyNoInteractions(
+                stockMetricContextFactory,
+                screeningConditionEvaluator);
+    }
+
+    @Test
+    void propagatesPreparedContextEvaluatorException() {
+        RuntimeException failure = new IllegalStateException(
+                "evaluation failed");
+        when(screeningConditionEvaluator.evaluate(condition, context))
+                .thenThrow(failure);
+
+        assertThatThrownBy(() -> service.evaluate(condition, context))
+                .isSameAs(failure);
+        verifyNoInteractions(stockMetricContextFactory);
+    }
 }
