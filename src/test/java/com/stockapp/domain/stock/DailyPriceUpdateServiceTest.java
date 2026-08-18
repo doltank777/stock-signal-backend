@@ -10,6 +10,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
@@ -44,6 +45,7 @@ class DailyPriceUpdateServiceTest {
     @Mock StockDailyPriceWriter writer;
     @Mock KisDailyPriceClient client;
     @Mock DailyPriceLoadSleeper sleeper;
+    @Captor ArgumentCaptor<List<KisDailyPrice>> pricesCaptor;
 
     private DailyPriceUpdateService service;
     private KisProperties properties;
@@ -157,9 +159,8 @@ class DailyPriceUpdateServiceTest {
 
         DailyPriceUpdateResult result = service.update(BASE_DATE);
 
-        ArgumentCaptor<List<KisDailyPrice>> prices = ArgumentCaptor.forClass(List.class);
-        verify(writer).write(any(), prices.capture());
-        assertThat(prices.getValue()).extracting(KisDailyPrice::getTradeDate)
+        verify(writer).write(any(), pricesCaptor.capture());
+        assertThat(pricesCaptor.getValue()).extracting(KisDailyPrice::getTradeDate)
                 .containsExactly(
                         LocalDate.of(2026, 8, 11), LocalDate.of(2026, 8, 12),
                         LocalDate.of(2026, 8, 13), LocalDate.of(2026, 8, 14));
@@ -369,9 +370,8 @@ class DailyPriceUpdateServiceTest {
 
         service.update(BASE_DATE);
 
-        ArgumentCaptor<List<MarketType>> markets = ArgumentCaptor.forClass(List.class);
-        verify(stockRepository).findByMarketTypeInOrderByIdAsc(markets.capture());
-        assertThat(markets.getValue()).containsExactly(MarketType.KOSPI, MarketType.KOSDAQ);
+        verify(stockRepository).findByMarketTypeInOrderByIdAsc(
+                List.of(MarketType.KOSPI, MarketType.KOSDAQ));
     }
 
     @Test
@@ -397,9 +397,9 @@ class DailyPriceUpdateServiceTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("123456");
 
-        ArgumentCaptor<List<MarketType>> markets = ArgumentCaptor.forClass(List.class);
-        verify(stockRepository).findByStockCodeAndMarketTypeIn(any(), markets.capture());
-        assertThat(markets.getValue()).doesNotContain(MarketType.KONEX);
+        verify(stockRepository).findByStockCodeAndMarketTypeIn(
+                any(), org.mockito.ArgumentMatchers.eq(
+                        List.of(MarketType.KOSPI, MarketType.KOSDAQ)));
         verify(stockRepository, never()).findByMarketTypeInOrderByIdAsc(anyList());
         verify(client, never()).getDailyPrices(any(), any(), any());
     }

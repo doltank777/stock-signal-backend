@@ -3,6 +3,7 @@ package com.stockapp.domain.stock;
 import com.stockapp.domain.stock.dto.StockImportResult;
 import lombok.RequiredArgsConstructor;
 import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.ss.util.NumberToTextConverter;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -88,8 +89,26 @@ public class StockImportService {
             return "";
         }
 
-        cell.setCellType(CellType.STRING);
-        return cell.getStringCellValue().trim();
+        String value = switch (cell.getCellType()) {
+            case STRING -> cell.getStringCellValue();
+            case NUMERIC -> NumberToTextConverter.toText(cell.getNumericCellValue());
+            case BOOLEAN -> Boolean.toString(cell.getBooleanCellValue()).toUpperCase();
+            case FORMULA -> getFormulaResult(cell);
+            case BLANK, _NONE -> "";
+            case ERROR -> FormulaError.forInt(cell.getErrorCellValue()).getString();
+        };
+        return value.trim();
+    }
+
+    private String getFormulaResult(Cell cell) {
+        return switch (cell.getCachedFormulaResultType()) {
+            case STRING -> cell.getStringCellValue();
+            case NUMERIC -> NumberToTextConverter.toText(cell.getNumericCellValue());
+            case BOOLEAN -> Boolean.toString(cell.getBooleanCellValue()).toUpperCase();
+            case BLANK, _NONE -> "";
+            case ERROR -> FormulaError.forInt(cell.getErrorCellValue()).getString();
+            case FORMULA -> throw new IllegalStateException("Unexpected cached formula cell type");
+        };
     }
 
     private MarketType convertMarketType(String marketText) {

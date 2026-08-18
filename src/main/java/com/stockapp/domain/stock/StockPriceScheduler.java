@@ -1,6 +1,5 @@
 package com.stockapp.domain.stock;
 
-import com.stockapp.domain.signal.SignalService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Profile;
@@ -21,7 +20,6 @@ public class StockPriceScheduler {
 
     private final StockRepository stockRepository;
     private final StockPriceService stockPriceService;
-    private final SignalService signalService;
 
     private static final ZoneId KOREA_ZONE = ZoneId.of("Asia/Seoul");
     private static final LocalTime MARKET_OPEN_TIME = LocalTime.of(9, 0);

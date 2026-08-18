@@ -1,6 +1,5 @@
 package com.stockapp.domain.screening.metric;
 
-import com.stockapp.domain.screening.ScreeningLogicalOperator;
 import com.stockapp.domain.screening.ScreeningMetric;
 import com.stockapp.domain.screening.ScreeningOperator;
 import com.stockapp.domain.screening.ScreeningStage;

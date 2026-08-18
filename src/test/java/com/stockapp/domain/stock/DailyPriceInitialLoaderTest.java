@@ -81,9 +81,8 @@ class DailyPriceInitialLoaderTest {
 
         DailyPriceInitialLoadResult result = loader.load(BASE_DATE);
 
-        ArgumentCaptor<List<MarketType>> markets = ArgumentCaptor.forClass(List.class);
-        verify(stockRepository).findByMarketTypeInOrderByIdAsc(markets.capture());
-        assertThat(markets.getValue()).containsExactly(MarketType.KOSPI, MarketType.KOSDAQ);
+        verify(stockRepository).findByMarketTypeInOrderByIdAsc(
+                List.of(MarketType.KOSPI, MarketType.KOSDAQ));
         assertThat(result.getSkippedStockCount()).isEqualTo(2);
         verify(client, never()).getDailyPrices(any(), any(), any());
     }
@@ -97,10 +96,8 @@ class DailyPriceInitialLoaderTest {
 
         DailyPriceInitialLoadResult result = loader.loadStock(" 005930 ", BASE_DATE);
 
-        ArgumentCaptor<List<MarketType>> markets = ArgumentCaptor.forClass(List.class);
         verify(stockRepository).findByStockCodeAndMarketTypeIn(
-                org.mockito.ArgumentMatchers.eq("005930"), markets.capture());
-        assertThat(markets.getValue()).containsExactly(MarketType.KOSPI, MarketType.KOSDAQ);
+                "005930", List.of(MarketType.KOSPI, MarketType.KOSDAQ));
         verify(stockRepository, never()).findByMarketTypeInOrderByIdAsc(anyList());
         assertThat(result.getTargetStockCount()).isEqualTo(1);
         assertThat(result.getSkippedStockCount()).isEqualTo(1);
@@ -143,10 +140,8 @@ class DailyPriceInitialLoaderTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining(konex.getStockCode());
 
-        ArgumentCaptor<List<MarketType>> markets = ArgumentCaptor.forClass(List.class);
         verify(stockRepository).findByStockCodeAndMarketTypeIn(
-                org.mockito.ArgumentMatchers.eq(konex.getStockCode()), markets.capture());
-        assertThat(markets.getValue()).doesNotContain(MarketType.KONEX);
+                konex.getStockCode(), List.of(MarketType.KOSPI, MarketType.KOSDAQ));
         verify(client, never()).getDailyPrices(any(), any(), any());
     }
 
@@ -156,7 +151,8 @@ class DailyPriceInitialLoaderTest {
         List<KisDailyPrice> unsorted = List.of(price("2026-08-10"), price("2026-08-12"));
         List<KisDailyPrice> older = List.of(price("2026-08-09"));
         when(client.getDailyPrices(any(), any(), any()))
-                .thenReturn(unsorted, older);
+                .thenReturn(unsorted)
+                .thenReturn(older);
         when(writer.write(kospi, unsorted)).thenReturn(save(2, 1));
         when(writer.write(kospi, older)).thenReturn(save(1, 1));
 

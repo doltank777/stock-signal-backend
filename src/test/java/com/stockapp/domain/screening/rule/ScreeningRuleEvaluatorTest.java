@@ -142,7 +142,8 @@ class ScreeningRuleEvaluatorTest {
                 ScreeningMetric.AVERAGE_VOLUME, 5,
                 null, 1);
         when(metricCalculator.calculate(ScreeningMetric.VOLUME, null, context))
-                .thenReturn(Optional.of(BigDecimal.TEN), Optional.empty());
+                .thenReturn(Optional.of(BigDecimal.TEN))
+                .thenReturn(Optional.empty());
         when(metricCalculator.calculate(ScreeningMetric.AVERAGE_VOLUME, 5, context))
                 .thenReturn(Optional.empty());
 
