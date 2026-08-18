@@ -1,10 +1,14 @@
 package com.stockapp.domain.user.admin;
 
 import com.stockapp.domain.user.admin.dto.AdminUserDetailResponse;
+import com.stockapp.domain.user.admin.dto.AdminUserMembershipUpdateRequest;
 import com.stockapp.domain.user.admin.dto.AdminUserPageResponse;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -29,5 +33,13 @@ public class AdminUserController {
     @GetMapping("/{id}")
     public AdminUserDetailResponse getUser(@PathVariable Long id) {
         return adminUserService.getUser(id);
+    }
+
+    @PatchMapping("/{id}/membership")
+    public AdminUserDetailResponse updateMembership(
+            @PathVariable Long id,
+            @Valid @RequestBody AdminUserMembershipUpdateRequest request
+    ) {
+        return adminUserService.updateMembership(id, request);
     }
 }

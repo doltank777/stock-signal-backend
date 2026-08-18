@@ -3,8 +3,10 @@ package com.stockapp.domain.user.admin;
 import com.stockapp.domain.notification.NotificationTokenRepository;
 import com.stockapp.domain.user.User;
 import com.stockapp.domain.user.UserRepository;
+import com.stockapp.domain.user.MembershipType;
 import com.stockapp.domain.user.admin.dto.AdminUserDetailResponse;
 import com.stockapp.domain.user.admin.dto.AdminUserListItemResponse;
+import com.stockapp.domain.user.admin.dto.AdminUserMembershipUpdateRequest;
 import com.stockapp.domain.user.admin.dto.AdminUserPageResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -78,8 +80,31 @@ public class AdminUserService {
     }
 
     public AdminUserDetailResponse getUser(Long id) {
-        User user = userRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
+        User user = findUser(id);
+        Instant now = Instant.now(clock);
+        long pushTokenCount = notificationTokenRepository.countByUserId(id);
+
+        return AdminUserDetailResponse.from(user, now, pushTokenCount);
+    }
+
+    @Transactional
+    public AdminUserDetailResponse updateMembership(
+            Long id,
+            AdminUserMembershipUpdateRequest request
+    ) {
+        validateMembershipRequest(request);
+
+        User user = findUser(id);
+
+        if (request.getMembershipType() == MembershipType.FREE) {
+            user.changeToFree();
+        } else {
+            user.changeToPaid(
+                    request.getMembershipStartedAt(),
+                    request.getMembershipExpiredAt()
+            );
+        }
+
         Instant now = Instant.now(clock);
         long pushTokenCount = notificationTokenRepository.countByUserId(id);
 
@@ -92,6 +117,40 @@ public class AdminUserService {
         }
 
         return new HashSet<>(notificationTokenRepository.findUserIdsWithToken(userIds));
+    }
+
+    private User findUser(Long id) {
+        return userRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
+    }
+
+    private void validateMembershipRequest(AdminUserMembershipUpdateRequest request) {
+        if (request.getMembershipType() == null) {
+            throw new IllegalArgumentException("회원 등급은 필수입니다.");
+        }
+
+        Instant startedAt = request.getMembershipStartedAt();
+        Instant expiredAt = request.getMembershipExpiredAt();
+
+        if (request.getMembershipType() == MembershipType.FREE) {
+            if (startedAt != null || expiredAt != null) {
+                throw new IllegalArgumentException("FREE 회원에는 유료기간을 지정할 수 없습니다.");
+            }
+
+            return;
+        }
+
+        if (startedAt == null) {
+            throw new IllegalArgumentException("유료회원 시작 시각은 필수입니다.");
+        }
+
+        if (expiredAt == null) {
+            throw new IllegalArgumentException("유료회원 만료 시각은 필수입니다.");
+        }
+
+        if (!expiredAt.isAfter(startedAt)) {
+            throw new IllegalArgumentException("유료회원 만료 시각은 시작 시각보다 이후여야 합니다.");
+        }
     }
 
     private Page<User> findUsers(
