@@ -30,6 +30,8 @@ public class AuthService {
                 .role(UserRole.USER)
                 .build();
 
+        user.changeToFree();
+
         User savedUser = userRepository.save(user);
 
         return UserResponse.from(savedUser);
