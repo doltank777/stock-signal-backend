@@ -3,14 +3,23 @@ package com.stockapp.external.kis;
 import com.stockapp.external.kis.dto.KisRealtimeTradePrice;
 import org.springframework.stereotype.Component;
 
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneId;
 
 @Component
 public class KisRealtimeTradeParser {
 
     private static final String TR_ID_REALTIME_PRICE = "H0STCNT0";
+    private static final ZoneId KOREA_ZONE = ZoneId.of("Asia/Seoul");
+
+    private final Clock clock;
+
+    public KisRealtimeTradeParser(Clock clock) {
+        this.clock = clock;
+    }
 
     public boolean supports(String payload) {
         return payload != null && payload.startsWith("0|" + TR_ID_REALTIME_PRICE + "|");
@@ -32,7 +41,7 @@ public class KisRealtimeTradeParser {
         long accumulatedVolume = Long.parseLong(values[13]);
 
         LocalDateTime tradeDateTime = LocalDateTime.of(
-                LocalDate.now(),
+                LocalDate.now(clock.withZone(KOREA_ZONE)),
                 LocalTime.of(
                         Integer.parseInt(tradeTime.substring(0, 2)),
                         Integer.parseInt(tradeTime.substring(2, 4)),

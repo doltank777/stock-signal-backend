@@ -28,7 +28,8 @@ class ScreeningMetricCalculatorTest {
     private static final LocalDate BASE_DATE = LocalDate.of(2026, 8, 14);
 
     private final ScreeningMetricCalculator calculator =
-            new ScreeningMetricCalculator();
+            new ScreeningMetricCalculator(
+                    new StockMetricCalculationSupport());
 
     @Test
     void calculatesCurrentPrice() {

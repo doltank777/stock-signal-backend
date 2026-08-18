@@ -18,6 +18,12 @@ public interface StockDailyPriceRepository
             Pageable pageable
     );
 
+    List<StockDailyPrice> findByStockIdAndTradeDateBeforeOrderByTradeDateDesc(
+            Long stockId,
+            LocalDate baseDate,
+            Pageable pageable
+    );
+
     boolean existsByStockAndTradeDate(
             Stock stock,
             LocalDate tradeDate
