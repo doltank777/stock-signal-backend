@@ -52,6 +52,14 @@ class DailyPriceLoadProfileIsolationTest {
     }
 
     @Test
+    void testProfileDisablesWebSocketStartupRunner() {
+        StandardEnvironment environment = environment("local", "test");
+
+        assertThat(matchesProfile(KisWebSocketStartupRunner.class, environment))
+                .isFalse();
+    }
+
+    @Test
     void prodProfileKeepsSchedulerEnabled() {
         StandardEnvironment environment = environment("prod");
 

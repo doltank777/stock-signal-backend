@@ -74,6 +74,21 @@ class StockPriceRepositoryTest {
                 .isEqualTo(second.getId());
     }
 
+    @Test
+    void returnsLatestTradeDateAcrossSnapshots() {
+        savePrice("005930", LocalDate.of(2026, 8, 12));
+        savePrice("000660", LocalDate.of(2026, 8, 14));
+        savePrice("035420", LocalDate.of(2026, 8, 13));
+
+        assertThat(stockPriceRepository.findLatestTradeDate())
+                .contains(LocalDate.of(2026, 8, 14));
+    }
+
+    @Test
+    void returnsEmptyLatestTradeDateWithoutSnapshots() {
+        assertThat(stockPriceRepository.findLatestTradeDate()).isEmpty();
+    }
+
     private StockPrice savePrice(String stockCode, LocalDate tradeDate) {
         return stockPriceRepository.saveAndFlush(StockPrice.builder()
                 .stockCode(stockCode)
