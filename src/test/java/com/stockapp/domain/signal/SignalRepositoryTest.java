@@ -58,20 +58,43 @@ class SignalRepositoryTest {
     }
 
     @Test
-    void keepsLegacySignalCompatibleWithNullSearchCondition() {
-        Stock stock = stockRepository.save(Stock.builder()
+    void readsEveryLegacyEnumWithNullSearchCondition() {
+        Stock stock = stockRepository.saveAndFlush(Stock.builder()
                 .stockCode("000660")
                 .stockName("SK하이닉스")
                 .marketType(MarketType.KOSPI)
                 .build());
-
-        Signal signal = signalRepository.saveAndFlush(
-                Signal.createVolumeSpike(stock, 100L, 300L, 3.0));
+        insertLegacySignal(stock.getId(), "VOLUME_SPIKE", "거래량 급증 신호 발생");
+        insertLegacySignal(
+                stock.getId(),
+                "MOVING_AVERAGE_BREAKOUT",
+                "이동평균 돌파 신호 발생");
         entityManager.clear();
 
-        Signal found = signalRepository.findById(signal.getId()).orElseThrow();
-        assertThat(found.getSearchCondition()).isNull();
-        assertThat(found.getSignalType()).isEqualTo(SignalType.VOLUME_SPIKE);
+        assertThat(signalRepository.findAll())
+                .allSatisfy(signal ->
+                        assertThat(signal.getSearchCondition()).isNull())
+                .extracting(Signal::getSignalType)
+                .containsExactlyInAnyOrder(
+                        SignalType.VOLUME_SPIKE,
+                        SignalType.MOVING_AVERAGE_BREAKOUT);
+    }
+
+    private void insertLegacySignal(
+            Long stockId,
+            String signalType,
+            String message) {
+        entityManager.createNativeQuery("""
+                        INSERT INTO signals (
+                            stock_id, search_condition_id, signal_type, message,
+                            base_value, current_value, change_rate, detected_at
+                        ) VALUES (?, NULL, ?, ?, 100, 300, 3.0, ?)
+                        """)
+                .setParameter(1, stockId)
+                .setParameter(2, signalType)
+                .setParameter(3, message)
+                .setParameter(4, LocalDateTime.of(2026, 8, 19, 10, 0))
+                .executeUpdate();
     }
 
     private SearchCondition condition(String name) {

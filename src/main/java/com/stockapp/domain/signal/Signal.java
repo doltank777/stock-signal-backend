@@ -70,42 +70,6 @@ public class Signal {
         this.detectedAt = detectedAt;
     }
 
-    public static Signal createVolumeSpike(
-            Stock stock,
-            Long averageVolume,
-            Long currentVolume,
-            Double changeRate
-    ) {
-        return new Signal(
-                stock,
-                null,
-                SignalType.VOLUME_SPIKE,
-                "거래량 급증 신호 발생",
-                averageVolume,
-                currentVolume,
-                changeRate,
-                LocalDateTime.now()
-        );
-    }
-
-    public static Signal createMovingAverageBreakout(
-            Stock stock,
-            Long averagePrice,
-            Long currentPrice,
-            Double changeRate
-    ) {
-        return new Signal(
-                stock,
-                null,
-                SignalType.MOVING_AVERAGE_BREAKOUT,
-                "이동평균 돌파 신호 발생",
-                averagePrice,
-                currentPrice,
-                changeRate,
-                LocalDateTime.now()
-        );
-    }
-
     public static Signal createSearchConditionMatch(
             Stock stock,
             SearchCondition searchCondition,

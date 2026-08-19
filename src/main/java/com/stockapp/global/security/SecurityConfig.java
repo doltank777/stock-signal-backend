@@ -54,9 +54,6 @@ public class SecurityConfig {
                                                 .requestMatchers("/api/kis/websocket/**")
                                                 .permitAll()
 
-                                                .requestMatchers("/api/mock/**")
-                                                .permitAll()
-
                                                 .anyRequest()
                                                 .authenticated())
                                 .addFilterBefore(
