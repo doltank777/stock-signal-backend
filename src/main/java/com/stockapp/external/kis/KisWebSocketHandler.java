@@ -1,6 +1,8 @@
 package com.stockapp.external.kis;
 
-import com.stockapp.domain.signal.RealtimeSignalService;
+import com.stockapp.domain.signal.realtime.RealtimeSignalConditionResult;
+import com.stockapp.domain.signal.realtime.RealtimeSignalEvaluationResult;
+import com.stockapp.domain.signal.realtime.RealtimeTradeSignalEvaluationService;
 import com.stockapp.external.kis.dto.KisRealtimeTradePrice;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -10,13 +12,15 @@ import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
+import java.util.List;
+
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class KisWebSocketHandler extends TextWebSocketHandler {
 
     private final KisRealtimeTradeParser kisRealtimeTradeParser;
-    private final RealtimeSignalService realtimeSignalService;
+    private final RealtimeTradeSignalEvaluationService evaluationService;
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
@@ -38,16 +42,20 @@ public class KisWebSocketHandler extends TextWebSocketHandler {
         }
 
         if (kisRealtimeTradeParser.supports(payload)) {
-            handleRealtimeTradeMessage(payload);
+            handleRealtimeTradeMessage(session, payload);
             return;
         }
 
         log.info("KIS WebSocket 알 수 없는 메시지 수신: {}", payload);
     }
 
-    private void handleRealtimeTradeMessage(String payload) {
+    private void handleRealtimeTradeMessage(
+            WebSocketSession session,
+            String payload) {
+        String stockCode = null;
         try {
             KisRealtimeTradePrice tradePrice = kisRealtimeTradeParser.parse(payload);
+            stockCode = tradePrice.getStockCode();
 
             log.debug(
                     "KIS 실시간 체결 수신 - stockCode: {}, currentPrice: {}, accumulatedVolume: {}, tradeDateTime: {}",
@@ -57,10 +65,24 @@ public class KisWebSocketHandler extends TextWebSocketHandler {
                     tradePrice.getTradeDateTime()
             );
 
-            realtimeSignalService.analyzeVolumeSpike(tradePrice);
+            evaluationService.evaluate(tradePrice)
+                    .ifPresent(this::logMatchedConditions);
+        } catch (RuntimeException e) {
+            log.error(
+                    "KIS 실시간 체결 평가 실패 - sessionId: {}, stockCode: {}",
+                    session.getId(), stockCode, e);
+        }
+    }
 
-        } catch (Exception e) {
-            log.error("KIS 실시간 체결 메시지 처리 실패 - payload: {}", payload, e);
+    private void logMatchedConditions(RealtimeSignalEvaluationResult result) {
+        List<Long> matchedConditionIds = result.conditionResults().stream()
+                .filter(RealtimeSignalConditionResult::matched)
+                .map(RealtimeSignalConditionResult::conditionId)
+                .toList();
+        if (!matchedConditionIds.isEmpty()) {
+            log.debug(
+                    "실시간 SIGNAL 조건 일치 - stockCode: {}, conditionIds: {}",
+                    result.stockCode(), matchedConditionIds);
         }
     }
 
