@@ -46,4 +46,30 @@ class KisWebSocketProbePropertiesTest {
             assertThat(properties.normalizedStockCodes()).hasSize(count);
         }
     }
+
+    @Test
+    void validatesReplaceModeInputsBeforeNetworkUse() {
+        KisWebSocketProbeProperties properties = new KisWebSocketProbeProperties();
+        properties.setStockCodes("005930,000660");
+        properties.setMode(KisWebSocketProbeMode.REPLACE);
+
+        assertThatIllegalArgumentException().isThrownBy(properties::plan)
+                .withMessageContaining("unsubscribe-stock-code");
+        properties.setUnsubscribeStockCode("035420");
+        properties.setReplacementStockCode("217590");
+        assertThatIllegalArgumentException().isThrownBy(properties::plan)
+                .withMessageContaining("initial stockCodes");
+
+        properties.setUnsubscribeStockCode("005930");
+        properties.setReplacementStockCode("000660");
+        assertThatIllegalArgumentException().isThrownBy(properties::plan)
+                .withMessageContaining("must not be in");
+
+        properties.setReplacementStockCode("005930");
+        assertThatIllegalArgumentException().isThrownBy(properties::plan)
+                .withMessageContaining("must differ");
+
+        properties.setReplacementStockCode("217590");
+        assertThat(properties.plan().mode()).isEqualTo(KisWebSocketProbeMode.REPLACE);
+    }
 }

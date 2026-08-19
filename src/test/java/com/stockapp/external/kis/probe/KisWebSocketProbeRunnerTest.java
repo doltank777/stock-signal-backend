@@ -19,6 +19,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.never;
 
 class KisWebSocketProbeRunnerTest {
 
@@ -36,12 +38,72 @@ class KisWebSocketProbeRunnerTest {
         KisWebSocketProbeRunner runner = new KisWebSocketProbeRunner(
                 properties, client, new KisWebSocketSubscriptionTracker());
 
-        KisWebSocketProbeSummary summary = runner.execute();
+        KisWebSocketProbeExecution execution = runner.execute();
+        KisWebSocketProbeSummary summary = execution.initialSummary();
 
         assertThat(summary.requestedStockCodes())
                 .containsExactly("005930", "000660");
         assertThat(summary.confirmedCount()).isEqualTo(2);
         assertThat(summary.failedCount()).isZero();
+        verify(session).close();
+    }
+
+    @Test
+    void replaceModeUnsubscribesBeforeReplacementAndReportsActiveCounts()
+            throws Exception {
+        KisWebSocketProbeProperties properties = replaceProperties();
+        KisWebSocketClient client = mock(KisWebSocketClient.class);
+        KisWebSocketSession session = mock(KisWebSocketSession.class);
+        when(client.connectAndSubscribe(List.of("005930", "000660")))
+                .thenReturn(session);
+        when(session.subscriptionResults()).thenReturn(List.of(
+                result("005930", KisSubscriptionStatus.CONFIRMED, null),
+                result("000660", KisSubscriptionStatus.CONFIRMED, null)));
+        when(client.unsubscribe(session, "005930")).thenReturn(result(
+                "005930", KisWebSocketOperation.UNSUBSCRIBE,
+                KisSubscriptionStatus.CONFIRMED, null));
+        when(client.subscribe(session, "217590")).thenReturn(result(
+                "217590", KisWebSocketOperation.SUBSCRIBE,
+                KisSubscriptionStatus.CONFIRMED, null));
+        when(session.activeStockCodes())
+                .thenReturn(List.of("000660"))
+                .thenReturn(List.of("000660", "217590"));
+        KisWebSocketProbeRunner runner = new KisWebSocketProbeRunner(
+                properties, client, new KisWebSocketSubscriptionTracker());
+
+        KisWebSocketProbeExecution execution = runner.execute();
+
+        org.mockito.InOrder order = inOrder(client, session);
+        order.verify(client).connectAndSubscribe(List.of("005930", "000660"));
+        order.verify(client).unsubscribe(session, "005930");
+        order.verify(client).subscribe(session, "217590");
+        order.verify(session).close();
+        assertThat(execution.activeCountAfterUnsubscribe()).isEqualTo(1);
+        assertThat(execution.activeCountAfterReplacement()).isEqualTo(2);
+    }
+
+    @Test
+    void unsubscribeFailurePreventsReplacementAndStillClosesSession()
+            throws Exception {
+        KisWebSocketProbeProperties properties = replaceProperties();
+        KisWebSocketClient client = mock(KisWebSocketClient.class);
+        KisWebSocketSession session = mock(KisWebSocketSession.class);
+        when(client.connectAndSubscribe(List.of("005930", "000660")))
+                .thenReturn(session);
+        when(session.subscriptionResults()).thenReturn(List.of(
+                result("005930", KisSubscriptionStatus.CONFIRMED, null),
+                result("000660", KisSubscriptionStatus.CONFIRMED, null)));
+        KisWebSocketSubscriptionResult failure = result(
+                "005930", KisWebSocketOperation.UNSUBSCRIBE,
+                KisSubscriptionStatus.FAILED, "OPSP0008");
+        KisWebSocketException exception = new KisWebSocketException(
+                "unsubscribe rejected", failure);
+        when(client.unsubscribe(session, "005930")).thenThrow(exception);
+        KisWebSocketProbeRunner runner = new KisWebSocketProbeRunner(
+                properties, client, new KisWebSocketSubscriptionTracker());
+
+        assertThatThrownBy(runner::execute).isSameAs(exception);
+        verify(client, never()).subscribe(session, "217590");
         verify(session).close();
     }
 
@@ -106,14 +168,32 @@ class KisWebSocketProbeRunnerTest {
         return properties;
     }
 
+    private KisWebSocketProbeProperties replaceProperties() {
+        KisWebSocketProbeProperties properties = properties("005930,000660");
+        properties.setMode(KisWebSocketProbeMode.REPLACE);
+        properties.setUnsubscribeStockCode("005930");
+        properties.setReplacementStockCode("217590");
+        return properties;
+    }
+
     private KisWebSocketSubscriptionResult result(
             String stockCode,
             KisSubscriptionStatus status,
             String messageCode
     ) {
+        return result(stockCode, KisWebSocketOperation.SUBSCRIBE,
+                status, messageCode);
+    }
+
+    private KisWebSocketSubscriptionResult result(
+            String stockCode,
+            KisWebSocketOperation operation,
+            KisSubscriptionStatus status,
+            String messageCode
+    ) {
         return new KisWebSocketSubscriptionResult(
                 "session-1", "H0STCNT0", stockCode,
-                KisWebSocketOperation.SUBSCRIBE, status, messageCode,
+                operation, status, messageCode,
                 messageCode == null ? "SUBSCRIBE SUCCESS" : "MAX SUBSCRIBE OVER");
     }
 }

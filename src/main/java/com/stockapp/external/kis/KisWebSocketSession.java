@@ -12,9 +12,11 @@ public final class KisWebSocketSession {
     private final WebSocketSession session;
     private final List<String> requestedStockCodes;
     private final KisWebSocketSubscriptionTracker subscriptionTracker;
+    private final String approvalKey;
 
     KisWebSocketSession(WebSocketSession session, List<String> requestedStockCodes) {
-        this(session, requestedStockCodes, new KisWebSocketSubscriptionTracker());
+        this(session, requestedStockCodes,
+                new KisWebSocketSubscriptionTracker(), null);
     }
 
     KisWebSocketSession(
@@ -22,11 +24,21 @@ public final class KisWebSocketSession {
             List<String> requestedStockCodes,
             KisWebSocketSubscriptionTracker subscriptionTracker
     ) {
+        this(session, requestedStockCodes, subscriptionTracker, null);
+    }
+
+    KisWebSocketSession(
+            WebSocketSession session,
+            List<String> requestedStockCodes,
+            KisWebSocketSubscriptionTracker subscriptionTracker,
+            String approvalKey
+    ) {
         this.session = Objects.requireNonNull(
                 session, "session is required");
         this.requestedStockCodes = validateAndCopy(requestedStockCodes);
         this.subscriptionTracker = Objects.requireNonNull(
                 subscriptionTracker, "subscriptionTracker is required");
+        this.approvalKey = approvalKey;
     }
 
     public String sessionId() {
@@ -47,6 +59,19 @@ public final class KisWebSocketSession {
 
     public List<KisWebSocketSubscriptionResult> subscriptionResults() {
         return subscriptionTracker.snapshot(sessionId());
+    }
+
+    public List<String> activeStockCodes() {
+        return subscriptionTracker.activeStockCodes(sessionId());
+    }
+
+    WebSocketSession webSocketSession() {
+        return session;
+    }
+
+    String approvalKey() {
+        return Objects.requireNonNull(
+                approvalKey, "approvalKey is not available");
     }
 
     public boolean isOpen() {

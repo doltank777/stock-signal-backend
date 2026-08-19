@@ -70,22 +70,8 @@ public class KisWebSocketClient {
         try {
             for (int index = 0; index < requestedStockCodes.size(); index++) {
                 String stockCode = requestedStockCodes.get(index);
-                subscriptionTracker.registerPending(
-                        session.getId(), TR_ID_REALTIME_PRICE, stockCode,
+                executeOperation(session, approvalKey, stockCode,
                         KisWebSocketOperation.SUBSCRIBE);
-                String subscribeMessage = createSubscriptionMessage(
-                        approvalKey, stockCode, KisWebSocketOperation.SUBSCRIBE);
-                session.sendMessage(new TextMessage(subscribeMessage));
-                KisWebSocketSubscriptionResult result = subscriptionTracker.awaitResult(
-                        session.getId(), TR_ID_REALTIME_PRICE, stockCode,
-                        KisWebSocketOperation.SUBSCRIBE, SUBSCRIBE_ACK_TIMEOUT);
-                if (result.status() != KisSubscriptionStatus.CONFIRMED) {
-                    throw new KisWebSocketException(
-                            "KIS WebSocket subscription rejected - stockCode: %s, trId: %s, messageCode: %s, message: %s"
-                                    .formatted(stockCode, result.trId(),
-                                            result.messageCode(), result.message()),
-                            result);
-                }
                 log.info("KIS WebSocket subscription confirmed - stockCode: {}", stockCode);
                 if (index + 1 < requestedStockCodes.size()) {
                     Thread.sleep(SUBSCRIBE_INTERVAL_MILLIS);
@@ -101,11 +87,99 @@ public class KisWebSocketClient {
         }
 
         return new KisWebSocketSession(
-                session, requestedStockCodes, subscriptionTracker);
+                session, requestedStockCodes, subscriptionTracker, approvalKey);
     }
 
     public KisWebSocketSession connectAndSubscribe(String stockCode) {
         return connectAndSubscribe(List.of(stockCode));
+    }
+
+    public KisWebSocketSubscriptionResult subscribe(
+            KisWebSocketSession session,
+            String stockCode
+    ) {
+        validateOperation(session, stockCode);
+        if (session.activeStockCodes().contains(stockCode.trim())) {
+            throw new IllegalStateException("stockCode is already actively subscribed");
+        }
+        return executeOnManagedSession(
+                session.webSocketSession(), session.approvalKey(),
+                stockCode.trim(), KisWebSocketOperation.SUBSCRIBE);
+    }
+
+    public KisWebSocketSubscriptionResult unsubscribe(
+            KisWebSocketSession session,
+            String stockCode
+    ) {
+        validateOperation(session, stockCode);
+        if (!session.activeStockCodes().contains(stockCode.trim())) {
+            throw new IllegalStateException("stockCode is not actively subscribed");
+        }
+        return executeOnManagedSession(
+                session.webSocketSession(), session.approvalKey(),
+                stockCode.trim(), KisWebSocketOperation.UNSUBSCRIBE);
+    }
+
+    private KisWebSocketSubscriptionResult executeOperation(
+            WebSocketSession session,
+            String approvalKey,
+            String stockCode,
+            KisWebSocketOperation operation
+    ) throws IOException, InterruptedException {
+        KisWebSocketSubscriptionRequest request =
+                subscriptionTracker.registerPending(
+                        session.getId(), TR_ID_REALTIME_PRICE,
+                        stockCode, operation);
+        session.sendMessage(new TextMessage(createSubscriptionMessage(
+                approvalKey, stockCode, operation)));
+        KisWebSocketSubscriptionResult result =
+                subscriptionTracker.awaitResult(
+                        request, SUBSCRIBE_ACK_TIMEOUT);
+        if (result.status() != KisSubscriptionStatus.CONFIRMED) {
+            throw rejected(result);
+        }
+        return result;
+    }
+
+    private KisWebSocketSubscriptionResult executeOnManagedSession(
+            WebSocketSession session,
+            String approvalKey,
+            String stockCode,
+            KisWebSocketOperation operation
+    ) {
+        try {
+            return executeOperation(session, approvalKey, stockCode, operation);
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new KisWebSocketException(
+                    "KIS WebSocket operation interrupted", exception);
+        } catch (IOException exception) {
+            throw new KisWebSocketException(
+                    "KIS WebSocket operation send failed", exception);
+        }
+    }
+
+    private KisWebSocketException rejected(
+            KisWebSocketSubscriptionResult result) {
+        return new KisWebSocketException(
+                "KIS WebSocket operation rejected - operation: %s, stockCode: %s, trId: %s, messageCode: %s, message: %s"
+                        .formatted(result.operation(), result.stockCode(),
+                                result.trId(), result.messageCode(), result.message()),
+                result);
+    }
+
+    private void validateOperation(
+            KisWebSocketSession session,
+            String stockCode
+    ) {
+        Objects.requireNonNull(session, "session is required");
+        Objects.requireNonNull(stockCode, "stockCode is required");
+        if (stockCode.isBlank()) {
+            throw new IllegalArgumentException("stockCode must not be blank");
+        }
+        if (!session.isOpen()) {
+            throw new IllegalStateException("KIS WebSocket session is closed");
+        }
     }
 
     private List<String> validateAndCopy(List<String> stockCodes) {

@@ -30,15 +30,37 @@ public class KisWebSocketProbeRunner implements ApplicationRunner {
         execute();
     }
 
-    KisWebSocketProbeSummary execute() throws IOException {
-        List<String> requestedStockCodes = probeProperties.normalizedStockCodes();
+    KisWebSocketProbeExecution execute() throws IOException {
+        KisWebSocketProbePlan plan = probeProperties.plan();
+        List<String> requestedStockCodes = plan.initialStockCodes();
         KisWebSocketSession session = null;
         try {
             session = webSocketClient.connectAndSubscribe(requestedStockCodes);
             KisWebSocketProbeSummary summary = new KisWebSocketProbeSummary(
                     requestedStockCodes, session.subscriptionResults());
             logSummary(summary);
-            return summary;
+            if (plan.mode() == KisWebSocketProbeMode.SUBSCRIBE) {
+                int activeCount = session.activeStockCodes().size();
+                return new KisWebSocketProbeExecution(
+                        summary, null, null, activeCount, activeCount);
+            }
+
+            KisWebSocketSubscriptionResult unsubscribeResult =
+                    webSocketClient.unsubscribe(
+                            session, plan.unsubscribeStockCode());
+            int activeAfterUnsubscribe = session.activeStockCodes().size();
+            logOperation("unsubscribe", unsubscribeResult,
+                    activeAfterUnsubscribe);
+
+            KisWebSocketSubscriptionResult replacementResult =
+                    webSocketClient.subscribe(
+                            session, plan.replacementStockCode());
+            int activeAfterReplacement = session.activeStockCodes().size();
+            logOperation("replacement", replacementResult,
+                    activeAfterReplacement);
+            return new KisWebSocketProbeExecution(
+                    summary, unsubscribeResult, replacementResult,
+                    activeAfterUnsubscribe, activeAfterReplacement);
         } catch (KisWebSocketException exception) {
             logFailure(requestedStockCodes, exception);
             throw exception;
@@ -47,6 +69,17 @@ public class KisWebSocketProbeRunner implements ApplicationRunner {
                 session.close();
             }
         }
+    }
+
+    private void logOperation(
+            String phase,
+            KisWebSocketSubscriptionResult result,
+            int activeCount
+    ) {
+        log.info("KIS WebSocket probe {} - stockCode: {}, status: {}, "
+                        + "messageCode: {}, message: {}, activeCount: {}",
+                phase, result.stockCode(), result.status(),
+                result.messageCode(), result.message(), activeCount);
     }
 
     private void logFailure(
@@ -63,9 +96,12 @@ public class KisWebSocketProbeRunner implements ApplicationRunner {
                 requestedStockCodes,
                 subscriptionTracker.snapshot(failure.sessionId()));
         log.error("KIS WebSocket probe rejected - requestedCount: {}, confirmedCount: {}, "
-                        + "failedCount: {}, firstFailedStockCode: {}, trId: {}, messageCode: {}, message: {}",
+                        + "failedCount: {}, operation: {}, firstFailedStockCode: {}, trId: {}, "
+                        + "messageCode: {}, message: {}, activeCount: {}",
                 requestedStockCodes.size(), summary.confirmedCount(), summary.failedCount(),
-                failure.stockCode(), failure.trId(), failure.messageCode(), failure.message());
+                failure.operation(), failure.stockCode(), failure.trId(),
+                failure.messageCode(), failure.message(),
+                subscriptionTracker.activeStockCodes(failure.sessionId()).size());
     }
 
     private void logSummary(KisWebSocketProbeSummary summary) {

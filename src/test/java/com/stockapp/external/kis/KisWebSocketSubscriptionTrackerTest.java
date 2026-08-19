@@ -54,6 +54,57 @@ class KisWebSocketSubscriptionTrackerTest {
                 .isEqualTo("CONNECTION_CLOSED");
     }
 
+    @Test
+    void separatesHistoryFromActiveStateAcrossSubscribeUnsubscribeResubscribe()
+            throws Exception {
+        KisWebSocketSubscriptionTracker tracker =
+                new KisWebSocketSubscriptionTracker();
+
+        complete(tracker, KisWebSocketOperation.SUBSCRIBE);
+        assertThat(tracker.activeStockCodes("session-1"))
+                .containsExactly("005930");
+
+        complete(tracker, KisWebSocketOperation.UNSUBSCRIBE);
+        assertThat(tracker.activeStockCodes("session-1")).isEmpty();
+
+        complete(tracker, KisWebSocketOperation.SUBSCRIBE);
+        assertThat(tracker.activeStockCodes("session-1"))
+                .containsExactly("005930");
+        assertThat(tracker.snapshot("session-1"))
+                .extracting(KisWebSocketSubscriptionResult::operation)
+                .containsExactly(
+                        KisWebSocketOperation.SUBSCRIBE,
+                        KisWebSocketOperation.UNSUBSCRIBE,
+                        KisWebSocketOperation.SUBSCRIBE);
+    }
+
+    @Test
+    void failedUnsubscribeDoesNotRemoveActiveStock() {
+        KisWebSocketSubscriptionTracker tracker =
+                new KisWebSocketSubscriptionTracker();
+        tracker.registerPending("session-1", "H0STCNT0", "005930",
+                KisWebSocketOperation.SUBSCRIBE);
+        tracker.handle("session-1", response("005930", "0"));
+        tracker.registerPending("session-1", "H0STCNT0", "005930",
+                KisWebSocketOperation.UNSUBSCRIBE);
+        tracker.handle("session-1", response("005930", "9"));
+
+        assertThat(tracker.activeStockCodes("session-1"))
+                .containsExactly("005930");
+    }
+
+    private void complete(
+            KisWebSocketSubscriptionTracker tracker,
+            KisWebSocketOperation operation
+    ) throws Exception {
+        KisWebSocketSubscriptionRequest request = tracker.registerPending(
+                "session-1", "H0STCNT0", "005930", operation);
+        assertThat(tracker.handle(
+                "session-1", response("005930", "0"))).isTrue();
+        assertThat(tracker.awaitResult(request, Duration.ofMillis(10)).status())
+                .isEqualTo(KisSubscriptionStatus.CONFIRMED);
+    }
+
     private KisWebSocketControlResponse response(String stockCode, String returnCode) {
         return new KisWebSocketControlResponse(
                 "H0STCNT0", stockCode, returnCode,

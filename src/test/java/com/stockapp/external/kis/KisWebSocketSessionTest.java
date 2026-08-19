@@ -61,6 +61,7 @@ class KisWebSocketSessionTest {
         assertThat(session.requestedStockCodes()).containsExactly("005930", "000660");
         assertThat(session.confirmedStockCodes()).containsExactly("005930");
         assertThat(session.failedStockCodes()).containsExactly("000660");
+        assertThat(session.activeStockCodes()).containsExactly("005930");
     }
 
     @Test
