@@ -72,4 +72,25 @@ class KisWebSocketProbePropertiesTest {
         properties.setReplacementStockCode("217590");
         assertThat(properties.plan().mode()).isEqualTo(KisWebSocketProbeMode.REPLACE);
     }
+
+    @Test
+    void validatesAndNormalizesMultiSessionInputs() {
+        KisWebSocketProbeProperties properties = new KisWebSocketProbeProperties();
+        properties.setMode(KisWebSocketProbeMode.MULTI_SESSION);
+
+        assertThatIllegalArgumentException().isThrownBy(properties::plan)
+                .withMessageContaining("session-a-stock-codes");
+        properties.setSessionAStockCodes("005930, 005930");
+        assertThatIllegalArgumentException().isThrownBy(properties::plan)
+                .withMessageContaining("session-b-stock-codes");
+        properties.setSessionBStockCodes("000660,,035420");
+        assertThatIllegalArgumentException().isThrownBy(properties::plan)
+                .withMessageContaining("empty tokens");
+
+        properties.setSessionBStockCodes("000660, 000660");
+        KisWebSocketProbePlan plan = properties.plan();
+        assertThat(plan.initialStockCodes()).isEmpty();
+        assertThat(plan.sessionAStockCodes()).containsExactly("005930");
+        assertThat(plan.sessionBStockCodes()).containsExactly("000660");
+    }
 }

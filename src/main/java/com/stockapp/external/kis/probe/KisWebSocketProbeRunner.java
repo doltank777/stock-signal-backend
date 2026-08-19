@@ -32,6 +32,9 @@ public class KisWebSocketProbeRunner implements ApplicationRunner {
 
     KisWebSocketProbeExecution execute() throws IOException {
         KisWebSocketProbePlan plan = probeProperties.plan();
+        if (plan.mode() == KisWebSocketProbeMode.MULTI_SESSION) {
+            return executeMultiSession(plan);
+        }
         List<String> requestedStockCodes = plan.initialStockCodes();
         KisWebSocketSession session = null;
         try {
@@ -67,6 +70,120 @@ public class KisWebSocketProbeRunner implements ApplicationRunner {
         } finally {
             if (session != null) {
                 session.close();
+            }
+        }
+    }
+
+    private KisWebSocketProbeExecution executeMultiSession(
+            KisWebSocketProbePlan plan
+    ) throws IOException {
+        KisWebSocketSession sessionA = null;
+        KisWebSocketSession sessionB = null;
+        RuntimeException primaryFailure = null;
+        try {
+            sessionA = webSocketClient.connectAndSubscribe(
+                    plan.sessionAStockCodes());
+            KisWebSocketProbeSummary summaryA = summary(
+                    plan.sessionAStockCodes(), sessionA);
+            logSessionSummary("A", summaryA, sessionA.isOpen());
+            if (!sessionA.isOpen()) {
+                throw new IllegalStateException(
+                        "KIS WebSocket probe session A closed before session B connection");
+            }
+
+            sessionB = webSocketClient.connectAndSubscribe(
+                    plan.sessionBStockCodes());
+            KisWebSocketProbeSummary summaryB = summary(
+                    plan.sessionBStockCodes(), sessionB);
+            boolean sessionAOpen = sessionA.isOpen();
+            boolean sessionBOpen = sessionB.isOpen();
+            boolean bothOpen = sessionAOpen && sessionBOpen;
+            logSessionSummary("B", summaryB, sessionBOpen);
+            log.info("KIS WebSocket multi-session probe completed - "
+                            + "sessionAOpen: {}, sessionBOpen: {}, bothOpen: {}",
+                    sessionAOpen, sessionBOpen, bothOpen);
+            if (!bothOpen) {
+                throw new IllegalStateException(
+                        "both KIS WebSocket probe sessions must remain open");
+            }
+            return new KisWebSocketProbeExecution(
+                    summaryA, null, null,
+                    sessionA.activeStockCodes().size(),
+                    sessionB.activeStockCodes().size(),
+                    summaryB, sessionAOpen, sessionBOpen, true);
+        } catch (KisWebSocketException exception) {
+            primaryFailure = exception;
+            logMultiSessionFailure(plan.sessionBStockCodes(), sessionA, exception);
+            throw exception;
+        } catch (RuntimeException exception) {
+            primaryFailure = exception;
+            throw exception;
+        } finally {
+            closeMultiSession(sessionB, sessionA, primaryFailure);
+        }
+    }
+
+    private KisWebSocketProbeSummary summary(
+            List<String> requestedStockCodes,
+            KisWebSocketSession session
+    ) {
+        return new KisWebSocketProbeSummary(
+                requestedStockCodes, session.subscriptionResults());
+    }
+
+    private void logSessionSummary(
+            String label,
+            KisWebSocketProbeSummary summary,
+            boolean open
+    ) {
+        log.info("KIS WebSocket multi-session probe session {} - "
+                        + "requestedCount: {}, confirmedCount: {}, failedCount: {}, open: {}",
+                label, summary.requestedStockCodes().size(),
+                summary.confirmedCount(), summary.failedCount(), open);
+    }
+
+    private void logMultiSessionFailure(
+            List<String> requestedStockCodes,
+            KisWebSocketSession sessionA,
+            KisWebSocketException exception
+    ) {
+        KisWebSocketSubscriptionResult failure = exception.subscriptionResult();
+        log.error("KIS WebSocket multi-session probe session B failed - "
+                        + "requestedCount: {}, sessionAOpen: {}, stockCode: {}, trId: {}, "
+                        + "messageCode: {}, message: {}",
+                requestedStockCodes.size(), sessionA != null && sessionA.isOpen(),
+                failure == null ? null : failure.stockCode(),
+                failure == null ? null : failure.trId(),
+                failure == null ? null : failure.messageCode(),
+                failure == null ? exception.getMessage() : failure.message());
+    }
+
+    private void closeMultiSession(
+            KisWebSocketSession sessionB,
+            KisWebSocketSession sessionA,
+            RuntimeException primaryFailure
+    ) throws IOException {
+        IOException closeFailure = null;
+        for (KisWebSocketSession session
+                : new KisWebSocketSession[]{sessionB, sessionA}) {
+            if (session == null) {
+                continue;
+            }
+            try {
+                session.close();
+            } catch (IOException exception) {
+                if (closeFailure == null) {
+                    closeFailure = exception;
+                } else {
+                    closeFailure.addSuppressed(exception);
+                }
+            }
+        }
+        if (closeFailure != null) {
+            if (primaryFailure != null) {
+                primaryFailure.addSuppressed(closeFailure);
+            } else {
+                throw closeFailure;
             }
         }
     }

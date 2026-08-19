@@ -2,5 +2,6 @@ package com.stockapp.external.kis.probe;
 
 public enum KisWebSocketProbeMode {
     SUBSCRIBE,
-    REPLACE
+    REPLACE,
+    MULTI_SESSION
 }

@@ -141,6 +141,12 @@ tasks.register('kisWebSocketProbe', org.springframework.boot.gradle.tasks.run.Bo
 	if (project.hasProperty('kisWebSocketProbeReplacementStockCode')) {
 		args "--kis-websocket-probe.replacement-stock-code=${project.property('kisWebSocketProbeReplacementStockCode')}"
 	}
+	if (project.hasProperty('kisWebSocketProbeSessionAStockCodes')) {
+		args "--kis-websocket-probe.session-a-stock-codes=${project.property('kisWebSocketProbeSessionAStockCodes')}"
+	}
+	if (project.hasProperty('kisWebSocketProbeSessionBStockCodes')) {
+		args "--kis-websocket-probe.session-b-stock-codes=${project.property('kisWebSocketProbeSessionBStockCodes')}"
+	}
 	if (project.hasProperty('kisWebSocketProbeLogControlPayload')) {
 		args "--kis-websocket-probe.log-control-payload=${project.property('kisWebSocketProbeLogControlPayload')}"
 	}

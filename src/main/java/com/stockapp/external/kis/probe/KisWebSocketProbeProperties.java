@@ -17,31 +17,30 @@ public class KisWebSocketProbeProperties {
     private KisWebSocketProbeMode mode = KisWebSocketProbeMode.SUBSCRIBE;
     private String unsubscribeStockCode;
     private String replacementStockCode;
+    private String sessionAStockCodes;
+    private String sessionBStockCodes;
     private boolean logControlPayload;
 
     public List<String> normalizedStockCodes() {
-        if (stockCodes == null || stockCodes.isBlank()) {
-            throw new IllegalArgumentException(
-                    "kis-websocket-probe.stock-codes is required");
-        }
-        List<String> parsed = Arrays.stream(stockCodes.split(",", -1))
-                .map(String::trim)
-                .toList();
-        if (parsed.stream().anyMatch(String::isBlank)) {
-            throw new IllegalArgumentException(
-                    "kis-websocket-probe.stock-codes must not contain empty tokens");
-        }
-        return List.copyOf(new LinkedHashSet<>(parsed));
+        return normalize(stockCodes, "kis-websocket-probe.stock-codes");
     }
 
     public KisWebSocketProbePlan plan() {
-        List<String> initialStockCodes = normalizedStockCodes();
         if (mode == null) {
             throw new IllegalArgumentException("kis-websocket-probe.mode is required");
         }
+        if (mode == KisWebSocketProbeMode.MULTI_SESSION) {
+            return new KisWebSocketProbePlan(
+                    mode, List.of(), null, null,
+                    normalize(sessionAStockCodes,
+                            "kis-websocket-probe.session-a-stock-codes"),
+                    normalize(sessionBStockCodes,
+                            "kis-websocket-probe.session-b-stock-codes"));
+        }
+        List<String> initialStockCodes = normalizedStockCodes();
         if (mode == KisWebSocketProbeMode.SUBSCRIBE) {
             return new KisWebSocketProbePlan(
-                    mode, initialStockCodes, null, null);
+                    mode, initialStockCodes, null, null, List.of(), List.of());
         }
 
         String unsubscribe = requiredCode(
@@ -63,7 +62,22 @@ public class KisWebSocketProbeProperties {
                     "replacement stockCode must not be in the initial stockCodes");
         }
         return new KisWebSocketProbePlan(
-                mode, initialStockCodes, unsubscribe, replacement);
+                mode, initialStockCodes, unsubscribe, replacement,
+                List.of(), List.of());
+    }
+
+    private List<String> normalize(String value, String propertyName) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException(propertyName + " is required");
+        }
+        List<String> parsed = Arrays.stream(value.split(",", -1))
+                .map(String::trim)
+                .toList();
+        if (parsed.stream().anyMatch(String::isBlank)) {
+            throw new IllegalArgumentException(propertyName
+                    + " must not contain empty tokens");
+        }
+        return List.copyOf(new LinkedHashSet<>(parsed));
     }
 
     private String requiredCode(String value, String message) {

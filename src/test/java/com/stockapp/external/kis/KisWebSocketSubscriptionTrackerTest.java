@@ -140,6 +140,22 @@ class KisWebSocketSubscriptionTrackerTest {
                         KisSubscriptionStatus.PENDING);
     }
 
+    @Test
+    void isolatesSameTrIdAndStockCodeBySession() {
+        KisWebSocketSubscriptionTracker tracker = new KisWebSocketSubscriptionTracker();
+        tracker.registerPending("session-A", "H0STCNT0", "005930",
+                KisWebSocketOperation.SUBSCRIBE);
+        tracker.registerPending("session-B", "H0STCNT0", "005930",
+                KisWebSocketOperation.SUBSCRIBE);
+
+        assertThat(tracker.handle("session-A", response("005930", "0"))).isTrue();
+
+        assertThat(tracker.snapshot("session-A").getFirst().status())
+                .isEqualTo(KisSubscriptionStatus.CONFIRMED);
+        assertThat(tracker.snapshot("session-B").getFirst().status())
+                .isEqualTo(KisSubscriptionStatus.PENDING);
+    }
+
     private void complete(
             KisWebSocketSubscriptionTracker tracker,
             KisWebSocketOperation operation

@@ -21,6 +21,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 
 class KisWebSocketProbeRunnerTest {
 
@@ -162,6 +163,91 @@ class KisWebSocketProbeRunnerTest {
         verify(session).close();
     }
 
+    @Test
+    void multiSessionKeepsFirstOpenWhileConnectingSecondAndClosesInReverseOrder()
+            throws Exception {
+        KisWebSocketProbeProperties properties = multiSessionProperties();
+        KisWebSocketClient client = mock(KisWebSocketClient.class);
+        KisWebSocketSession sessionA = mock(KisWebSocketSession.class);
+        KisWebSocketSession sessionB = mock(KisWebSocketSession.class);
+        when(client.connectAndSubscribe(List.of("005930"))).thenReturn(sessionA);
+        when(client.connectAndSubscribe(List.of("000660"))).thenReturn(sessionB);
+        when(sessionA.subscriptionResults()).thenReturn(List.of(
+                result("005930", KisSubscriptionStatus.CONFIRMED, null)));
+        when(sessionB.subscriptionResults()).thenReturn(List.of(
+                result("000660", KisSubscriptionStatus.CONFIRMED, null)));
+        when(sessionA.isOpen()).thenReturn(true);
+        when(sessionB.isOpen()).thenReturn(true);
+        when(sessionA.activeStockCodes()).thenReturn(List.of("005930"));
+        when(sessionB.activeStockCodes()).thenReturn(List.of("000660"));
+        KisWebSocketProbeRunner runner = new KisWebSocketProbeRunner(
+                properties, client, new KisWebSocketSubscriptionTracker());
+
+        KisWebSocketProbeExecution execution = runner.execute();
+
+        org.mockito.InOrder order = inOrder(client, sessionA, sessionB);
+        order.verify(client).connectAndSubscribe(List.of("005930"));
+        order.verify(sessionA, times(2)).isOpen();
+        order.verify(client).connectAndSubscribe(List.of("000660"));
+        order.verify(sessionA).isOpen();
+        order.verify(sessionB).isOpen();
+        order.verify(sessionB).close();
+        order.verify(sessionA).close();
+        assertThat(execution.initialSummary().confirmedCount()).isEqualTo(1);
+        assertThat(execution.sessionBSummary().confirmedCount()).isEqualTo(1);
+        assertThat(execution.sessionAOpen()).isTrue();
+        assertThat(execution.sessionBOpen()).isTrue();
+        assertThat(execution.bothOpen()).isTrue();
+    }
+
+    @Test
+    void multiSessionSecondFailurePropagatesAndClosesFirstWithoutRetry()
+            throws Exception {
+        KisWebSocketProbeProperties properties = multiSessionProperties();
+        KisWebSocketClient client = mock(KisWebSocketClient.class);
+        KisWebSocketSession sessionA = mock(KisWebSocketSession.class);
+        when(client.connectAndSubscribe(List.of("005930"))).thenReturn(sessionA);
+        when(sessionA.subscriptionResults()).thenReturn(List.of(
+                result("005930", KisSubscriptionStatus.CONFIRMED, null)));
+        when(sessionA.isOpen()).thenReturn(true);
+        KisWebSocketSubscriptionResult failure = result(
+                "000660", KisSubscriptionStatus.FAILED, "OPSP8996");
+        KisWebSocketException exception = new KisWebSocketException(
+                "ALREADY IN USE appkey", failure);
+        when(client.connectAndSubscribe(List.of("000660"))).thenThrow(exception);
+        KisWebSocketProbeRunner runner = new KisWebSocketProbeRunner(
+                properties, client, new KisWebSocketSubscriptionTracker());
+
+        assertThatThrownBy(runner::execute).isSameAs(exception);
+
+        verify(client, times(2)).connectAndSubscribe(org.mockito.ArgumentMatchers.anyList());
+        verify(sessionA).close();
+    }
+
+    @Test
+    void multiSessionAttemptsBothClosesAndAggregatesCloseFailures()
+            throws Exception {
+        KisWebSocketProbeProperties properties = multiSessionProperties();
+        KisWebSocketClient client = mock(KisWebSocketClient.class);
+        KisWebSocketSession sessionA = successfulSession("005930");
+        KisWebSocketSession sessionB = successfulSession("000660");
+        when(client.connectAndSubscribe(List.of("005930"))).thenReturn(sessionA);
+        when(client.connectAndSubscribe(List.of("000660"))).thenReturn(sessionB);
+        IOException sessionBCloseFailure = new IOException("session B close failed");
+        IOException sessionACloseFailure = new IOException("session A close failed");
+        doThrow(sessionBCloseFailure).when(sessionB).close();
+        doThrow(sessionACloseFailure).when(sessionA).close();
+        KisWebSocketProbeRunner runner = new KisWebSocketProbeRunner(
+                properties, client, new KisWebSocketSubscriptionTracker());
+
+        assertThatThrownBy(runner::execute)
+                .isSameAs(sessionBCloseFailure)
+                .satisfies(error -> assertThat(error.getSuppressed())
+                        .containsExactly(sessionACloseFailure));
+        verify(sessionB).close();
+        verify(sessionA).close();
+    }
+
     private KisWebSocketProbeProperties properties(String stockCodes) {
         KisWebSocketProbeProperties properties = new KisWebSocketProbeProperties();
         properties.setStockCodes(stockCodes);
@@ -174,6 +260,23 @@ class KisWebSocketProbeRunnerTest {
         properties.setUnsubscribeStockCode("005930");
         properties.setReplacementStockCode("217590");
         return properties;
+    }
+
+    private KisWebSocketProbeProperties multiSessionProperties() {
+        KisWebSocketProbeProperties properties = new KisWebSocketProbeProperties();
+        properties.setMode(KisWebSocketProbeMode.MULTI_SESSION);
+        properties.setSessionAStockCodes("005930");
+        properties.setSessionBStockCodes("000660");
+        return properties;
+    }
+
+    private KisWebSocketSession successfulSession(String stockCode) {
+        KisWebSocketSession session = mock(KisWebSocketSession.class);
+        when(session.subscriptionResults()).thenReturn(List.of(
+                result(stockCode, KisSubscriptionStatus.CONFIRMED, null)));
+        when(session.isOpen()).thenReturn(true);
+        when(session.activeStockCodes()).thenReturn(List.of(stockCode));
+        return session;
     }
 
     private KisWebSocketSubscriptionResult result(

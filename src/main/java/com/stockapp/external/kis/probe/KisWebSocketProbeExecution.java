@@ -9,8 +9,24 @@ public record KisWebSocketProbeExecution(
         KisWebSocketSubscriptionResult unsubscribeResult,
         KisWebSocketSubscriptionResult replacementResult,
         int activeCountAfterUnsubscribe,
-        int activeCountAfterReplacement
+        int activeCountAfterReplacement,
+        KisWebSocketProbeSummary sessionBSummary,
+        boolean sessionAOpen,
+        boolean sessionBOpen,
+        boolean bothOpen
 ) {
+    public KisWebSocketProbeExecution(
+            KisWebSocketProbeSummary initialSummary,
+            KisWebSocketSubscriptionResult unsubscribeResult,
+            KisWebSocketSubscriptionResult replacementResult,
+            int activeCountAfterUnsubscribe,
+            int activeCountAfterReplacement
+    ) {
+        this(initialSummary, unsubscribeResult, replacementResult,
+                activeCountAfterUnsubscribe, activeCountAfterReplacement,
+                null, false, false, false);
+    }
+
     public Optional<KisWebSocketSubscriptionResult> optionalUnsubscribeResult() {
         return Optional.ofNullable(unsubscribeResult);
     }
