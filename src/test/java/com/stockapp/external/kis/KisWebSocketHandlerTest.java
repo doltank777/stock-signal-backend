@@ -1,5 +1,6 @@
 package com.stockapp.external.kis;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.stockapp.domain.signal.realtime.RealtimeSignalConditionResult;
 import com.stockapp.domain.signal.realtime.RealtimeSignalEvaluationResult;
 import com.stockapp.domain.signal.realtime.RealtimeSignalPersistenceService;
@@ -8,6 +9,7 @@ import com.stockapp.external.kis.dto.KisRealtimeTradePrice;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.socket.TextMessage;
+import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.WebSocketSession;
 
 import java.time.LocalDateTime;
@@ -15,6 +17,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -30,6 +33,7 @@ class KisWebSocketHandlerTest {
     private RealtimeSignalPersistenceService persistenceService;
     private WebSocketSession session;
     private KisWebSocketHandler handler;
+    private KisWebSocketSubscriptionTracker subscriptionTracker;
 
     @BeforeEach
     void setUp() {
@@ -37,8 +41,13 @@ class KisWebSocketHandlerTest {
         evaluationService = mock(RealtimeTradeSignalEvaluationService.class);
         persistenceService = mock(RealtimeSignalPersistenceService.class);
         session = mock(WebSocketSession.class);
+        subscriptionTracker = new KisWebSocketSubscriptionTracker();
         handler = new KisWebSocketHandler(
-                parser, evaluationService, persistenceService);
+                parser,
+                new KisWebSocketControlResponseParser(new ObjectMapper()),
+                subscriptionTracker,
+                evaluationService,
+                persistenceService);
     }
 
     @Test
@@ -131,6 +140,39 @@ class KisWebSocketHandlerTest {
         verify(parser, never()).parse(org.mockito.ArgumentMatchers.anyString());
         verifyNoInteractions(evaluationService);
         verifyNoInteractions(persistenceService);
+    }
+
+    @Test
+    void correlatesControlAckAndFailsPendingOnCloseOrTransportError()
+            throws Exception {
+        when(session.getId()).thenReturn("session-1");
+        subscriptionTracker.registerPending(
+                "session-1", "H0STCNT0", "005930",
+                KisWebSocketOperation.SUBSCRIBE);
+        handler.handleTextMessage(session, new TextMessage("""
+                {"header":{"tr_id":"H0STCNT0","tr_key":"005930"},
+                 "body":{"rt_cd":"0","msg1":"SUBSCRIBE SUCCESS"}}
+                """));
+        assertThat(subscriptionTracker.snapshot("session-1").getFirst().status())
+                .isEqualTo(KisSubscriptionStatus.CONFIRMED);
+
+        subscriptionTracker.registerPending(
+                "session-1", "H0STCNT0", "000660",
+                KisWebSocketOperation.SUBSCRIBE);
+        handler.afterConnectionClosed(session, CloseStatus.NORMAL);
+        assertThat(subscriptionTracker.snapshot("session-1").stream()
+                .filter(result -> result.stockCode().equals("000660"))
+                .findFirst()).hasValueSatisfying(result ->
+                assertThat(result.messageCode()).isEqualTo("CONNECTION_CLOSED"));
+
+        subscriptionTracker.registerPending(
+                "session-2", "H0STCNT0", "035420",
+                KisWebSocketOperation.SUBSCRIBE);
+        WebSocketSession second = mock(WebSocketSession.class);
+        when(second.getId()).thenReturn("session-2");
+        handler.handleTransportError(second, new IllegalStateException("broken"));
+        assertThat(subscriptionTracker.snapshot("session-2").getFirst().messageCode())
+                .isEqualTo("TRANSPORT_ERROR");
     }
 
     private KisRealtimeTradePrice trade() {

@@ -11,14 +11,22 @@ public final class KisWebSocketSession {
 
     private final WebSocketSession session;
     private final List<String> requestedStockCodes;
+    private final KisWebSocketSubscriptionTracker subscriptionTracker;
+
+    KisWebSocketSession(WebSocketSession session, List<String> requestedStockCodes) {
+        this(session, requestedStockCodes, new KisWebSocketSubscriptionTracker());
+    }
 
     KisWebSocketSession(
             WebSocketSession session,
-            List<String> requestedStockCodes
+            List<String> requestedStockCodes,
+            KisWebSocketSubscriptionTracker subscriptionTracker
     ) {
         this.session = Objects.requireNonNull(
                 session, "session is required");
         this.requestedStockCodes = validateAndCopy(requestedStockCodes);
+        this.subscriptionTracker = Objects.requireNonNull(
+                subscriptionTracker, "subscriptionTracker is required");
     }
 
     public String sessionId() {
@@ -29,6 +37,18 @@ public final class KisWebSocketSession {
         return requestedStockCodes;
     }
 
+    public List<String> confirmedStockCodes() {
+        return stockCodesWithStatus(KisSubscriptionStatus.CONFIRMED);
+    }
+
+    public List<String> failedStockCodes() {
+        return stockCodesWithStatus(KisSubscriptionStatus.FAILED);
+    }
+
+    public List<KisWebSocketSubscriptionResult> subscriptionResults() {
+        return subscriptionTracker.snapshot(sessionId());
+    }
+
     public boolean isOpen() {
         return session.isOpen();
     }
@@ -37,6 +57,14 @@ public final class KisWebSocketSession {
         if (session.isOpen()) {
             session.close();
         }
+    }
+
+    private List<String> stockCodesWithStatus(KisSubscriptionStatus status) {
+        return subscriptionResults().stream()
+                .filter(result -> result.operation() == KisWebSocketOperation.SUBSCRIBE)
+                .filter(result -> result.status() == status)
+                .map(KisWebSocketSubscriptionResult::stockCode)
+                .toList();
     }
 
     private List<String> validateAndCopy(List<String> stockCodes) {

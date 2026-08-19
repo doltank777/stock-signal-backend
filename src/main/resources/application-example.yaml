@@ -15,8 +15,11 @@ app:
     secret-key: YOUR_AES_SECRET_KEY
 
 kis:
+  environment: virtual
   app-key: YOUR_APP_KEY
   app-secret: YOUR_APP_SECRET
+  base-url: https://openapivts.koreainvestment.com:29443
+  web-socket-url: ws://ops.koreainvestment.com:31000
   daily-price:
     target-trading-days: 250
     request-window-months: 6

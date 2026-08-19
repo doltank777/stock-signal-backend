@@ -15,13 +15,15 @@ import java.time.Duration;
 @RequiredArgsConstructor
 public class KisWebSocketApprovalClient {
 
-    private static final String KIS_WEBSOCKET_APPROVAL_KEY = "kis:websocket-approval-key";
+    private static final String KIS_WEBSOCKET_APPROVAL_KEY_PREFIX =
+            "kis:websocket-approval-key:";
 
     private final KisProperties kisProperties;
     private final StringRedisTemplate redisTemplate;
 
     public String getApprovalKey() {
-        String cachedApprovalKey = redisTemplate.opsForValue().get(KIS_WEBSOCKET_APPROVAL_KEY);
+        String cacheKey = approvalCacheKey();
+        String cachedApprovalKey = redisTemplate.opsForValue().get(cacheKey);
 
         if (cachedApprovalKey != null && !cachedApprovalKey.isBlank()) {
             return cachedApprovalKey;
@@ -30,12 +32,17 @@ public class KisWebSocketApprovalClient {
         KisWebSocketApprovalResponse response = requestApprovalKey();
 
         redisTemplate.opsForValue().set(
-                KIS_WEBSOCKET_APPROVAL_KEY,
+                cacheKey,
                 response.getApprovalKey(),
                 Duration.ofHours(23)
         );
 
         return response.getApprovalKey();
+    }
+
+    String approvalCacheKey() {
+        return KIS_WEBSOCKET_APPROVAL_KEY_PREFIX
+                + kisProperties.getEnvironment().name().toLowerCase();
     }
 
     private KisWebSocketApprovalResponse requestApprovalKey() {

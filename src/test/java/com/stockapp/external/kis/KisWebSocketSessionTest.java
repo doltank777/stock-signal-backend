@@ -41,6 +41,29 @@ class KisWebSocketSessionTest {
     }
 
     @Test
+    void distinguishesRequestedConfirmedAndFailedStockCodes() {
+        WebSocketSession webSocketSession = mock(WebSocketSession.class);
+        when(webSocketSession.getId()).thenReturn("session-1");
+        KisWebSocketSubscriptionTracker tracker =
+                new KisWebSocketSubscriptionTracker();
+        tracker.registerPending("session-1", "H0STCNT0", "005930",
+                KisWebSocketOperation.SUBSCRIBE);
+        tracker.registerPending("session-1", "H0STCNT0", "000660",
+                KisWebSocketOperation.SUBSCRIBE);
+        tracker.handle("session-1", new KisWebSocketControlResponse(
+                "H0STCNT0", "005930", "0", null, "SUBSCRIBE SUCCESS"));
+        tracker.handle("session-1", new KisWebSocketControlResponse(
+                "H0STCNT0", "000660", "9", "OPSP0008", "MAX SUBSCRIBE OVER"));
+
+        KisWebSocketSession session = new KisWebSocketSession(
+                webSocketSession, List.of("005930", "000660"), tracker);
+
+        assertThat(session.requestedStockCodes()).containsExactly("005930", "000660");
+        assertThat(session.confirmedStockCodes()).containsExactly("005930");
+        assertThat(session.failedStockCodes()).containsExactly("000660");
+    }
+
+    @Test
     void closesOpenSessionAndSkipsAlreadyClosedSession() throws IOException {
         WebSocketSession openSession = mock(WebSocketSession.class);
         when(openSession.isOpen()).thenReturn(true);

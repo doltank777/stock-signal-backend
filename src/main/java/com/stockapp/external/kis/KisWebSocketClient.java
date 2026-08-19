@@ -8,6 +8,7 @@ import org.springframework.web.socket.WebSocketSession;
 
 import java.io.IOException;
 import java.net.URI;
+import java.time.Duration;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
@@ -18,25 +19,28 @@ public class KisWebSocketClient {
 
     private static final String TR_ID_REALTIME_PRICE = "H0STCNT0";
     private static final String CUSTOMER_TYPE_PERSONAL = "P";
-    private static final String TRANSACTION_TYPE_SUBSCRIBE = "1";
     private static final String CONTENT_TYPE_UTF8 = "utf-8";
     private static final long SUBSCRIBE_INTERVAL_MILLIS = 300L;
+    private static final Duration SUBSCRIBE_ACK_TIMEOUT = Duration.ofSeconds(5);
 
     private final KisProperties kisProperties;
     private final KisWebSocketApprovalClient kisWebSocketApprovalClient;
     private final KisWebSocketHandler kisWebSocketHandler;
     private final KisWebSocketConnector kisWebSocketConnector;
+    private final KisWebSocketSubscriptionTracker subscriptionTracker;
 
     public KisWebSocketClient(
             KisProperties kisProperties,
             KisWebSocketApprovalClient kisWebSocketApprovalClient,
             KisWebSocketHandler kisWebSocketHandler,
-            KisWebSocketConnector kisWebSocketConnector
+            KisWebSocketConnector kisWebSocketConnector,
+            KisWebSocketSubscriptionTracker subscriptionTracker
     ) {
         this.kisProperties = kisProperties;
         this.kisWebSocketApprovalClient = kisWebSocketApprovalClient;
         this.kisWebSocketHandler = kisWebSocketHandler;
         this.kisWebSocketConnector = kisWebSocketConnector;
+        this.subscriptionTracker = subscriptionTracker;
     }
 
     public KisWebSocketSession connectAndSubscribe(List<String> stockCodes) {
@@ -64,22 +68,40 @@ public class KisWebSocketClient {
         log.info("KIS WebSocket 세션 연결 완료 - 구독 대상 종목 수: {}", requestedStockCodes.size());
 
         try {
-            for (String stockCode : requestedStockCodes) {
-                String subscribeMessage = createSubscribeMessage(approvalKey, stockCode);
+            for (int index = 0; index < requestedStockCodes.size(); index++) {
+                String stockCode = requestedStockCodes.get(index);
+                subscriptionTracker.registerPending(
+                        session.getId(), TR_ID_REALTIME_PRICE, stockCode,
+                        KisWebSocketOperation.SUBSCRIBE);
+                String subscribeMessage = createSubscriptionMessage(
+                        approvalKey, stockCode, KisWebSocketOperation.SUBSCRIBE);
                 session.sendMessage(new TextMessage(subscribeMessage));
-
-                log.info("KIS WebSocket 구독 요청 완료 - stockCode: {}", stockCode);
-
-                Thread.sleep(SUBSCRIBE_INTERVAL_MILLIS);
+                KisWebSocketSubscriptionResult result = subscriptionTracker.awaitResult(
+                        session.getId(), TR_ID_REALTIME_PRICE, stockCode,
+                        KisWebSocketOperation.SUBSCRIBE, SUBSCRIBE_ACK_TIMEOUT);
+                if (result.status() != KisSubscriptionStatus.CONFIRMED) {
+                    throw new KisWebSocketException(
+                            "KIS WebSocket subscription rejected - stockCode: %s, trId: %s, messageCode: %s, message: %s"
+                                    .formatted(stockCode, result.trId(),
+                                            result.messageCode(), result.message()),
+                            result);
+                }
+                log.info("KIS WebSocket subscription confirmed - stockCode: {}", stockCode);
+                if (index + 1 < requestedStockCodes.size()) {
+                    Thread.sleep(SUBSCRIBE_INTERVAL_MILLIS);
+                }
             }
         } catch (Exception exception) {
             restoreInterrupt(exception);
             closeAfterSubscriptionFailure(session, exception);
-            throw new KisWebSocketException(
-                    "KIS WebSocket 구독 요청에 실패했습니다.", exception);
+            if (exception instanceof KisWebSocketException webSocketException) {
+                throw webSocketException;
+            }
+            throw new KisWebSocketException("KIS WebSocket subscription failed", exception);
         }
 
-        return new KisWebSocketSession(session, requestedStockCodes);
+        return new KisWebSocketSession(
+                session, requestedStockCodes, subscriptionTracker);
     }
 
     public KisWebSocketSession connectAndSubscribe(String stockCode) {
@@ -123,7 +145,11 @@ public class KisWebSocketClient {
         }
     }
 
-    private String createSubscribeMessage(String approvalKey, String stockCode) {
+    String createSubscriptionMessage(
+            String approvalKey,
+            String stockCode,
+            KisWebSocketOperation operation
+    ) {
         return """
                 {
                   "header": {
@@ -142,7 +168,7 @@ public class KisWebSocketClient {
                 """.formatted(
                 approvalKey,
                 CUSTOMER_TYPE_PERSONAL,
-                TRANSACTION_TYPE_SUBSCRIBE,
+                operation.transactionType(),
                 CONTENT_TYPE_UTF8,
                 TR_ID_REALTIME_PRICE,
                 stockCode

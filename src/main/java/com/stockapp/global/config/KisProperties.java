@@ -9,11 +9,17 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "kis")
 public class KisProperties {
 
+    private Environment environment;
     private String baseUrl;
     private String webSocketUrl;
     private String appKey;
     private String appSecret;
     private DailyPrice dailyPrice = new DailyPrice();
+
+    public enum Environment {
+        REAL,
+        VIRTUAL
+    }
 
     @Getter
     @Setter

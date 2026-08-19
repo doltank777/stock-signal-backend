@@ -21,6 +21,8 @@ import java.util.List;
 public class KisWebSocketHandler extends TextWebSocketHandler {
 
     private final KisRealtimeTradeParser kisRealtimeTradeParser;
+    private final KisWebSocketControlResponseParser controlResponseParser;
+    private final KisWebSocketSubscriptionTracker subscriptionTracker;
     private final RealtimeTradeSignalEvaluationService evaluationService;
     private final RealtimeSignalPersistenceService persistenceService;
 
@@ -39,7 +41,7 @@ public class KisWebSocketHandler extends TextWebSocketHandler {
         }
 
         if (isJsonMessage(payload)) {
-            log.info("KIS WebSocket JSON 응답 수신: {}", payload);
+            handleControlMessage(session, payload);
             return;
         }
 
@@ -49,6 +51,18 @@ public class KisWebSocketHandler extends TextWebSocketHandler {
         }
 
         log.info("KIS WebSocket 알 수 없는 메시지 수신: {}", payload);
+    }
+
+    private void handleControlMessage(WebSocketSession session, String payload) {
+        controlResponseParser.parse(payload).ifPresentOrElse(response -> {
+            boolean correlated = subscriptionTracker.handle(session.getId(), response);
+            if (!correlated) {
+                log.warn("Uncorrelated KIS WebSocket control response - sessionId: {}, trId: {}, trKey: {}",
+                        session.getId(), response.trId(), response.trKey());
+            }
+        }, () -> log.warn(
+                "Malformed or unsupported KIS WebSocket control response - sessionId: {}",
+                session.getId()));
     }
 
     private void handleRealtimeTradeMessage(
@@ -96,11 +110,15 @@ public class KisWebSocketHandler extends TextWebSocketHandler {
 
     @Override
     public void handleTransportError(WebSocketSession session, Throwable exception) {
+        subscriptionTracker.failPendingForSession(
+                session.getId(), "TRANSPORT_ERROR", exception.getMessage());
         log.error("KIS WebSocket 오류 발생 - sessionId: {}", session.getId(), exception);
     }
 
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
+        subscriptionTracker.failPendingForSession(
+                session.getId(), "CONNECTION_CLOSED", status.toString());
         log.warn("KIS WebSocket 연결 종료 - sessionId: {}, status: {}", session.getId(), status);
     }
 

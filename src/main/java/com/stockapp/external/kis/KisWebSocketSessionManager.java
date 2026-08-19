@@ -5,7 +5,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
@@ -15,25 +14,17 @@ import java.util.concurrent.atomic.AtomicReference;
 @Component
 public class KisWebSocketSessionManager {
 
-    static final int MAX_STOCKS_PER_SESSION = 40;
-    private static final long SESSION_CONNECT_INTERVAL_MILLIS = 1_000L;
-
     private final KisWebSocketClient kisWebSocketClient;
-    private final KisWebSocketSessionSleeper sessionSleeper;
-    private final AtomicReference<List<KisWebSocketSession>> sessions =
-            new AtomicReference<>(List.of());
+    private final AtomicReference<KisWebSocketSession> session =
+            new AtomicReference<>();
 
-    public KisWebSocketSessionManager(
-            KisWebSocketClient kisWebSocketClient,
-            KisWebSocketSessionSleeper sessionSleeper
-    ) {
+    public KisWebSocketSessionManager(KisWebSocketClient kisWebSocketClient) {
         this.kisWebSocketClient = kisWebSocketClient;
-        this.sessionSleeper = sessionSleeper;
     }
 
     public synchronized void connectAll(List<String> stockCodes) {
         List<String> uniqueStockCodes = validateAndCopy(stockCodes);
-        if (!sessions.get().isEmpty()) {
+        if (session.get() != null) {
             throw new IllegalStateException(
                     "KIS WebSocket sessions are already active");
         }
@@ -41,62 +32,29 @@ public class KisWebSocketSessionManager {
             return;
         }
 
-        List<List<String>> chunks = partition(uniqueStockCodes);
-        List<KisWebSocketSession> connectedSessions = new ArrayList<>();
-        try {
-            for (int index = 0; index < chunks.size(); index++) {
-                connectedSessions.add(Objects.requireNonNull(
-                        kisWebSocketClient.connectAndSubscribe(
-                                chunks.get(index)),
-                        "connected session is required"));
-                if (index + 1 < chunks.size()) {
-                    sessionSleeper.sleep(
-                            SESSION_CONNECT_INTERVAL_MILLIS);
-                }
-            }
-        } catch (Exception connectionFailure) {
-            restoreInterrupt(connectionFailure);
-            closeForRollback(connectedSessions, connectionFailure);
-            if (connectionFailure instanceof RuntimeException runtimeFailure) {
-                throw runtimeFailure;
-            }
-            throw new KisWebSocketException(
-                    "KIS WebSocket 세션 연결 간격 대기에 실패했습니다.",
-                    connectionFailure);
-        }
-
-        sessions.set(List.copyOf(connectedSessions));
+        KisWebSocketSession connectedSession = Objects.requireNonNull(
+                kisWebSocketClient.connectAndSubscribe(uniqueStockCodes),
+                "connected session is required");
+        session.set(connectedSession);
     }
 
     public List<KisWebSocketSession> sessions() {
-        return sessions.get();
+        KisWebSocketSession current = session.get();
+        return current == null ? List.of() : List.of(current);
     }
 
     public int sessionCount() {
-        return sessions.get().size();
+        return session.get() == null ? 0 : 1;
     }
 
     public boolean isEmpty() {
-        return sessions.get().isEmpty();
+        return session.get() == null;
     }
 
     public synchronized void closeAll() throws IOException {
-        List<KisWebSocketSession> sessionsToClose =
-                sessions.getAndSet(List.of());
-        IOException firstFailure = null;
-        for (KisWebSocketSession session : sessionsToClose) {
-            try {
-                session.close();
-            } catch (IOException closeFailure) {
-                if (firstFailure == null) {
-                    firstFailure = closeFailure;
-                } else {
-                    firstFailure.addSuppressed(closeFailure);
-                }
-            }
-        }
-        if (firstFailure != null) {
-            throw firstFailure;
+        KisWebSocketSession sessionToClose = session.getAndSet(null);
+        if (sessionToClose != null) {
+            sessionToClose.close();
         }
     }
 
@@ -124,35 +82,4 @@ public class KisWebSocketSessionManager {
         return List.copyOf(uniqueStockCodes);
     }
 
-    private List<List<String>> partition(List<String> stockCodes) {
-        List<List<String>> chunks = new ArrayList<>();
-        for (int start = 0;
-             start < stockCodes.size();
-             start += MAX_STOCKS_PER_SESSION) {
-            int end = Math.min(
-                    start + MAX_STOCKS_PER_SESSION,
-                    stockCodes.size());
-            chunks.add(stockCodes.subList(start, end));
-        }
-        return chunks;
-    }
-
-    private void closeForRollback(
-            List<KisWebSocketSession> connectedSessions,
-            Exception connectionFailure
-    ) {
-        for (KisWebSocketSession session : connectedSessions) {
-            try {
-                session.close();
-            } catch (IOException closeFailure) {
-                connectionFailure.addSuppressed(closeFailure);
-            }
-        }
-    }
-
-    private void restoreInterrupt(Exception exception) {
-        if (exception instanceof InterruptedException) {
-            Thread.currentThread().interrupt();
-        }
-    }
 }
