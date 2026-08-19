@@ -17,6 +17,10 @@ public interface SearchConditionRepository
     List<SearchCondition>
             findAllByEnabledTrueAndDeletedAtIsNullOrderByPriorityDesc();
 
+    @EntityGraph(attributePaths = "rules")
+    List<SearchCondition> findAllByIdInAndEnabledTrueAndRealtimeEnabledTrueAndDeletedAtIsNull(
+            List<Long> ids);
+
     Optional<SearchCondition> findByIdAndDeletedAtIsNull(Long id);
 
     Optional<SearchCondition> findByIdAndDeletedAtIsNotNull(Long id);

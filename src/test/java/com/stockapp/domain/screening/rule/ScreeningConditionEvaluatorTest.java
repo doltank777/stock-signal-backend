@@ -38,7 +38,8 @@ class ScreeningConditionEvaluatorTest {
 
     @BeforeEach
     void setUp() {
-        evaluator = new ScreeningConditionEvaluator(ruleEvaluator);
+        evaluator = new ScreeningConditionEvaluator(
+                ruleEvaluator, new RuleEvaluationSupport());
     }
 
     @Test

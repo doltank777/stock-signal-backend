@@ -1,6 +1,5 @@
 package com.stockapp.domain.screening.rule;
 
-import com.stockapp.domain.screening.ScreeningOperator;
 import com.stockapp.domain.screening.ScreeningRightType;
 import com.stockapp.domain.screening.ScreeningStage;
 import com.stockapp.domain.screening.SearchConditionRule;
@@ -17,6 +16,7 @@ import java.util.Optional;
 public class ScreeningRuleEvaluator {
 
     private final ScreeningMetricCalculator metricCalculator;
+    private final RuleEvaluationSupport evaluationSupport;
 
     public boolean evaluate(
             SearchConditionRule rule,
@@ -36,7 +36,7 @@ public class ScreeningRuleEvaluator {
         }
 
         int comparison = left.get().compareTo(right.get());
-        return compare(rule.getOperator(), comparison);
+        return evaluationSupport.compare(rule.getOperator(), comparison);
     }
 
     private Optional<BigDecimal> resolveRight(
@@ -48,19 +48,6 @@ public class ScreeningRuleEvaluator {
         }
         return metricCalculator.calculate(
                 rule.getRightMetric(), rule.getRightPeriod(), context);
-    }
-
-    private boolean compare(
-            ScreeningOperator operator,
-            int comparison
-    ) {
-        return switch (operator) {
-            case GREATER_THAN -> comparison > 0;
-            case GREATER_THAN_OR_EQUAL -> comparison >= 0;
-            case LESS_THAN -> comparison < 0;
-            case LESS_THAN_OR_EQUAL -> comparison <= 0;
-            case EQUAL -> comparison == 0;
-        };
     }
 
     private void validate(

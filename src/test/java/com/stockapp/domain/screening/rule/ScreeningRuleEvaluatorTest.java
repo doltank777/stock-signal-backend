@@ -42,7 +42,8 @@ class ScreeningRuleEvaluatorTest {
 
     @BeforeEach
     void setUp() {
-        evaluator = new ScreeningRuleEvaluator(metricCalculator);
+        evaluator = new ScreeningRuleEvaluator(
+                metricCalculator, new RuleEvaluationSupport());
     }
 
     @Test

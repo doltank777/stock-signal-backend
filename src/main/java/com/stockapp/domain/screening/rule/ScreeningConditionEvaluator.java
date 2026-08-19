@@ -1,6 +1,5 @@
 package com.stockapp.domain.screening.rule;
 
-import com.stockapp.domain.screening.ScreeningLogicalOperator;
 import com.stockapp.domain.screening.ScreeningStage;
 import com.stockapp.domain.screening.SearchCondition;
 import com.stockapp.domain.screening.SearchConditionRule;
@@ -16,6 +15,7 @@ import java.util.List;
 public class ScreeningConditionEvaluator {
 
     private final ScreeningRuleEvaluator screeningRuleEvaluator;
+    private final RuleEvaluationSupport evaluationSupport;
 
     public boolean evaluate(
             SearchCondition condition,
@@ -33,51 +33,11 @@ public class ScreeningConditionEvaluator {
                 .sorted(Comparator.comparingInt(SearchConditionRule::getRuleOrder))
                 .toList();
 
-        validateStructure(rules);
-
-        boolean result = screeningRuleEvaluator.evaluate(rules.getFirst(), context);
-        for (int index = 1; index < rules.size(); index++) {
-            SearchConditionRule rule = rules.get(index);
-            ScreeningLogicalOperator logicalOperator = rule.getLogicalOperator();
-
-            switch (logicalOperator) {
-                case AND -> {
-                    if (result) {
-                        result = screeningRuleEvaluator.evaluate(rule, context);
-                    }
-                }
-                case OR -> {
-                    if (!result) {
-                        result = screeningRuleEvaluator.evaluate(rule, context);
-                    }
-                }
-            }
-        }
-
-        return result;
-    }
-
-    private void validateStructure(List<SearchConditionRule> rules) {
-        if (rules.isEmpty()) {
-            throw new IllegalArgumentException("at least one SCREENING rule is required");
-        }
-
-        for (int index = 0; index < rules.size(); index++) {
-            SearchConditionRule rule = rules.get(index);
-            int expectedOrder = index + 1;
-            if (rule.getRuleOrder() != expectedOrder) {
-                throw new IllegalArgumentException(
-                        "SCREENING ruleOrder must be consecutive from 1");
-            }
-
-            if (index == 0 && rule.getLogicalOperator() != null) {
-                throw new IllegalArgumentException(
-                        "the first SCREENING rule must not have a logicalOperator");
-            }
-            if (index > 0 && rule.getLogicalOperator() == null) {
-                throw new IllegalArgumentException(
-                        "subsequent SCREENING rules require a logicalOperator");
-            }
-        }
+        return evaluationSupport.evaluateSequence(
+                rules,
+                SearchConditionRule::getRuleOrder,
+                SearchConditionRule::getLogicalOperator,
+                rule -> screeningRuleEvaluator.evaluate(rule, context),
+                "SCREENING");
     }
 }
