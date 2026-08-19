@@ -95,10 +95,14 @@ class KisWebSocketClientTest {
     }
 
     @Test
-    void buildsCurrentOfficialUnsubscribeTransactionType() {
+    void buildsProbeCandidateTransactionTypes() {
+        assertThat(KisWebSocketOperation.SUBSCRIBE.transactionType())
+                .isEqualTo("1");
+        assertThat(KisWebSocketOperation.UNSUBSCRIBE.transactionType())
+                .isEqualTo("2");
         assertThat(client.createSubscriptionMessage(
                 "approval-key", "005930", KisWebSocketOperation.UNSUBSCRIBE))
-                .contains("\"tr_type\": \"0\"")
+                .contains("\"tr_type\": \"2\"")
                 .contains("\"tr_key\": \"005930\"");
     }
 
@@ -233,7 +237,7 @@ class KisWebSocketClientTest {
                 ArgumentCaptor.forClass(TextMessage.class);
         verify(webSocketSession, times(2)).sendMessage(messages.capture());
         assertThat(messages.getAllValues().get(0).getPayload())
-                .contains("\"tr_type\": \"0\"");
+                .contains("\"tr_type\": \"2\"");
         assertThat(messages.getAllValues().get(1).getPayload())
                 .contains("\"tr_type\": \"1\"")
                 .contains("217590");

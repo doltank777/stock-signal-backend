@@ -2,7 +2,7 @@ package com.stockapp.external.kis;
 
 public enum KisWebSocketOperation {
     SUBSCRIBE("1"),
-    UNSUBSCRIBE("0");
+    UNSUBSCRIBE("2");
 
     private final String transactionType;
 
