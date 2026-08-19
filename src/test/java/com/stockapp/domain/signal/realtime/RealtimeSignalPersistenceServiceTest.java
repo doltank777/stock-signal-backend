@@ -4,7 +4,6 @@ import com.stockapp.domain.screening.SearchCondition;
 import com.stockapp.domain.screening.SearchConditionRepository;
 import com.stockapp.domain.signal.Signal;
 import com.stockapp.domain.signal.SignalRepository;
-import com.stockapp.domain.signal.SignalType;
 import com.stockapp.domain.stock.Stock;
 import com.stockapp.domain.stock.StockRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -54,7 +53,7 @@ class RealtimeSignalPersistenceServiceTest {
     }
 
     @Test
-    void savesOneConditionAwareSignalWithTradeTimeAndNoLegacyMetricFallbacks() {
+    void savesOneConditionAwareSignalWithTradeTimeAndMessage() {
         SearchCondition condition = conditionEntity(1L);
         prepareStockAndConditions(List.of(1L), List.of(condition));
         when(signalRepository.existsByStockAndSearchConditionAndDetectedAtAfter(
@@ -68,12 +67,8 @@ class RealtimeSignalPersistenceServiceTest {
         Signal saved = captor.getValue();
         assertThat(saved.getStock()).isSameAs(stock);
         assertThat(saved.getSearchCondition()).isSameAs(condition);
-        assertThat(saved.getSignalType()).isEqualTo(
-                SignalType.SEARCH_CONDITION_MATCH);
+        assertThat(saved.getMessage()).isEqualTo("검색식 SIGNAL 조건 일치");
         assertThat(saved.getDetectedAt()).isEqualTo(TRADE_TIME);
-        assertThat(saved.getBaseValue()).isNull();
-        assertThat(saved.getCurrentValue()).isNull();
-        assertThat(saved.getChangeRate()).isNull();
     }
 
     @Test

@@ -14,6 +14,7 @@ import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @DataJpaTest
 class SignalRepositoryTest {
@@ -59,89 +60,49 @@ class SignalRepositoryTest {
     }
 
     @Test
-    void readsEveryLegacyEnumWithNullSearchCondition() {
-        Stock stock = stockRepository.saveAndFlush(Stock.builder()
-                .stockCode("000660")
-                .stockName("SK하이닉스")
-                .marketType(MarketType.KOSPI)
-                .build());
-        insertLegacySignal(stock.getId(), "VOLUME_SPIKE", "거래량 급증 신호 발생");
-        insertLegacySignal(
-                stock.getId(),
-                "MOVING_AVERAGE_BREAKOUT",
-                "이동평균 돌파 신호 발생");
-        entityManager.clear();
-
-        assertThat(signalRepository.findAll())
-                .allSatisfy(signal ->
-                        assertThat(signal.getSearchCondition()).isNull())
-                .extracting(Signal::getSignalType)
-                .containsExactlyInAnyOrder(
-                        SignalType.VOLUME_SPIKE,
-                        SignalType.MOVING_AVERAGE_BREAKOUT);
-    }
-
-    @Test
-    void fetchesStockAndOptionalSearchConditionWithoutDroppingLegacySignals() {
+    void fetchesStockAndRequiredSearchConditionInDetectedAtDescendingOrder() {
         Stock stock = stockRepository.saveAndFlush(Stock.builder()
                 .stockCode("035420")
                 .stockName("NAVER")
                 .marketType(MarketType.KOSPI)
                 .build());
-        SearchCondition searchCondition = searchConditionRepository.saveAndFlush(
-                condition("거래량 증가 + 이동평균 돌파"));
-        insertLegacySignal(
-                stock.getId(),
-                "VOLUME_SPIKE",
-                "거래량 급증 신호 발생",
-                LocalDateTime.of(2026, 8, 19, 9, 0));
+        SearchCondition first = searchConditionRepository.saveAndFlush(
+                condition("first"));
+        SearchCondition second = searchConditionRepository.saveAndFlush(
+                condition("second"));
         signalRepository.saveAndFlush(Signal.createSearchConditionMatch(
                 stock,
-                searchCondition,
+                first,
+                LocalDateTime.of(2026, 8, 19, 9, 0)));
+        signalRepository.saveAndFlush(Signal.createSearchConditionMatch(
+                stock,
+                second,
                 LocalDateTime.of(2026, 8, 19, 10, 0)));
         entityManager.clear();
 
         var signals = signalRepository.findAllWithStockOrderByDetectedAtDesc();
 
         assertThat(signals)
-                .extracting(Signal::getSignalType)
-                .containsExactly(
-                        SignalType.SEARCH_CONDITION_MATCH,
-                        SignalType.VOLUME_SPIKE);
+                .extracting(signal -> signal.getSearchCondition().getName())
+                .containsExactly("second", "first");
         assertThat(Hibernate.isInitialized(signals.get(0).getStock())).isTrue();
         assertThat(Hibernate.isInitialized(signals.get(0).getSearchCondition())).isTrue();
-        assertThat(signals.get(0).getSearchCondition().getName())
-                .isEqualTo("거래량 증가 + 이동평균 돌파");
-        assertThat(signals.get(1).getSearchCondition()).isNull();
+        assertThat(Hibernate.isInitialized(signals.get(1).getStock())).isTrue();
+        assertThat(Hibernate.isInitialized(signals.get(1).getSearchCondition())).isTrue();
     }
 
-    private void insertLegacySignal(
-            Long stockId,
-            String signalType,
-            String message) {
-        insertLegacySignal(
-                stockId,
-                signalType,
-                message,
-                LocalDateTime.of(2026, 8, 19, 10, 0));
-    }
+    @Test
+    void rejectsMissingSearchCondition() {
+        Stock stock = Stock.builder()
+                .stockCode("000660")
+                .stockName("SK하이닉스")
+                .marketType(MarketType.KOSPI)
+                .build();
 
-    private void insertLegacySignal(
-            Long stockId,
-            String signalType,
-            String message,
-            LocalDateTime detectedAt) {
-        entityManager.createNativeQuery("""
-                        INSERT INTO signals (
-                            stock_id, search_condition_id, signal_type, message,
-                            base_value, current_value, change_rate, detected_at
-                        ) VALUES (?, NULL, ?, ?, 100, 300, 3.0, ?)
-                        """)
-                .setParameter(1, stockId)
-                .setParameter(2, signalType)
-                .setParameter(3, message)
-                .setParameter(4, detectedAt)
-                .executeUpdate();
+        assertThatThrownBy(() -> Signal.createSearchConditionMatch(
+                stock, null, LocalDateTime.of(2026, 8, 19, 10, 0)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("searchCondition is required");
     }
 
     private SearchCondition condition(String name) {

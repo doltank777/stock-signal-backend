@@ -24,27 +24,13 @@ public class Signal {
     @JoinColumn(name = "stock_id", nullable = false)
     private Stock stock;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "search_condition_id")
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "search_condition_id", nullable = false)
     private SearchCondition searchCondition;
-
-    // 신호 종류: 거래량 급증, 이동평균 돌파 등
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 50)
-    private SignalType signalType;
 
     // 신호 설명
     @Column(nullable = false, length = 255)
     private String message;
-
-    // 기준값 예: 평균 거래량
-    private Long baseValue;
-
-    // 현재값 예: 현재 거래량
-    private Long currentValue;
-
-    // 증가율 예: 235.5%
-    private Double changeRate;
 
     // 신호 발생 시간
     @Column(nullable = false)
@@ -53,20 +39,12 @@ public class Signal {
     private Signal(
             Stock stock,
             SearchCondition searchCondition,
-            SignalType signalType,
             String message,
-            Long baseValue,
-            Long currentValue,
-            Double changeRate,
             LocalDateTime detectedAt
     ) {
         this.stock = stock;
         this.searchCondition = searchCondition;
-        this.signalType = signalType;
         this.message = message;
-        this.baseValue = baseValue;
-        this.currentValue = currentValue;
-        this.changeRate = changeRate;
         this.detectedAt = detectedAt;
     }
 
@@ -87,11 +65,7 @@ public class Signal {
         return new Signal(
                 stock,
                 searchCondition,
-                SignalType.SEARCH_CONDITION_MATCH,
                 "검색식 SIGNAL 조건 일치",
-                null,
-                null,
-                null,
                 detectedAt
         );
     }

@@ -2,7 +2,6 @@ package com.stockapp.domain.signal.dto;
 
 import com.stockapp.domain.screening.SearchCondition;
 import com.stockapp.domain.signal.Signal;
-import com.stockapp.domain.signal.SignalType;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -17,14 +16,7 @@ public class SignalResponse {
     private String stockName;
     private Long searchConditionId;
     private String searchConditionName;
-    private SignalType signalType;
     private String message;
-
-    private Long baseValue;
-    private Long currentValue;
-    private Double changeRate;
-    private Double changeRatePercent;
-
     private LocalDateTime detectedAt;
 
     public static SignalResponse from(Signal signal) {
@@ -34,25 +26,10 @@ public class SignalResponse {
                 .id(signal.getId())
                 .stockCode(signal.getStock().getStockCode())
                 .stockName(signal.getStock().getStockName())
-                .searchConditionId(searchCondition != null
-                        ? searchCondition.getId() : null)
-                .searchConditionName(searchCondition != null
-                        ? searchCondition.getName() : null)
-                .signalType(signal.getSignalType())
+                .searchConditionId(searchCondition.getId())
+                .searchConditionName(searchCondition.getName())
                 .message(signal.getMessage())
-                .baseValue(signal.getBaseValue())
-                .currentValue(signal.getCurrentValue())
-                .changeRate(signal.getChangeRate())
-                .changeRatePercent(calculatePercent(signal.getChangeRate()))
                 .detectedAt(signal.getDetectedAt())
                 .build();
-    }
-
-    private static Double calculatePercent(Double changeRate) {
-        if (changeRate == null) {
-            return null;
-        }
-
-        return Math.round((changeRate - 1) * 1000) / 10.0;
     }
 }

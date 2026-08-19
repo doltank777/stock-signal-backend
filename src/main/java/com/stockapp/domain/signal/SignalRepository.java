@@ -21,7 +21,7 @@ public interface SignalRepository extends JpaRepository<Signal, Long> {
             SELECT s
             FROM Signal s
             JOIN FETCH s.stock
-            LEFT JOIN FETCH s.searchCondition
+            JOIN FETCH s.searchCondition
             ORDER BY s.detectedAt DESC
             """)
     List<Signal> findAllWithStockOrderByDetectedAtDesc();
