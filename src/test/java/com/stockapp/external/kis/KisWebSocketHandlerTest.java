@@ -2,6 +2,7 @@ package com.stockapp.external.kis;
 
 import com.stockapp.domain.signal.realtime.RealtimeSignalConditionResult;
 import com.stockapp.domain.signal.realtime.RealtimeSignalEvaluationResult;
+import com.stockapp.domain.signal.realtime.RealtimeSignalPersistenceService;
 import com.stockapp.domain.signal.realtime.RealtimeTradeSignalEvaluationService;
 import com.stockapp.external.kis.dto.KisRealtimeTradePrice;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,6 +27,7 @@ class KisWebSocketHandlerTest {
 
     private KisRealtimeTradeParser parser;
     private RealtimeTradeSignalEvaluationService evaluationService;
+    private RealtimeSignalPersistenceService persistenceService;
     private WebSocketSession session;
     private KisWebSocketHandler handler;
 
@@ -33,8 +35,10 @@ class KisWebSocketHandlerTest {
     void setUp() {
         parser = mock(KisRealtimeTradeParser.class);
         evaluationService = mock(RealtimeTradeSignalEvaluationService.class);
+        persistenceService = mock(RealtimeSignalPersistenceService.class);
         session = mock(WebSocketSession.class);
-        handler = new KisWebSocketHandler(parser, evaluationService);
+        handler = new KisWebSocketHandler(
+                parser, evaluationService, persistenceService);
     }
 
     @Test
@@ -48,6 +52,7 @@ class KisWebSocketHandlerTest {
 
         verify(parser).parse(REALTIME_PAYLOAD);
         verify(evaluationService).evaluate(trade);
+        verifyNoInteractions(persistenceService);
     }
 
     @Test
@@ -67,6 +72,14 @@ class KisWebSocketHandlerTest {
                 .doesNotThrowAnyException();
 
         verify(evaluationService, org.mockito.Mockito.times(2)).evaluate(trade);
+        verify(persistenceService).persistMatchedSignals(
+                org.mockito.ArgumentMatchers.argThat(result ->
+                        result.conditionResults().stream().noneMatch(
+                                RealtimeSignalConditionResult::matched)));
+        verify(persistenceService).persistMatchedSignals(
+                org.mockito.ArgumentMatchers.argThat(result ->
+                        result.conditionResults().stream().filter(
+                                RealtimeSignalConditionResult::matched).count() == 2));
     }
 
     @Test
@@ -79,6 +92,7 @@ class KisWebSocketHandlerTest {
                 session, new TextMessage(REALTIME_PAYLOAD)))
                 .doesNotThrowAnyException();
         verifyNoInteractions(evaluationService);
+        verifyNoInteractions(persistenceService);
 
         KisRealtimeTradePrice trade = trade();
         org.mockito.Mockito.doReturn(trade)
@@ -89,6 +103,23 @@ class KisWebSocketHandlerTest {
         assertThatCode(() -> handler.handleTextMessage(
                 session, new TextMessage(REALTIME_PAYLOAD)))
                 .doesNotThrowAnyException();
+        verifyNoInteractions(persistenceService);
+    }
+
+    @Test
+    void isolatesPersistenceFailureToCurrentMessage() throws Exception {
+        KisRealtimeTradePrice trade = trade();
+        RealtimeSignalEvaluationResult result = result(false, true, false);
+        when(parser.supports(REALTIME_PAYLOAD)).thenReturn(true);
+        when(parser.parse(REALTIME_PAYLOAD)).thenReturn(trade);
+        when(evaluationService.evaluate(trade)).thenReturn(Optional.of(result));
+        org.mockito.Mockito.doThrow(new IllegalStateException("save failed"))
+                .when(persistenceService).persistMatchedSignals(result);
+
+        assertThatCode(() -> handler.handleTextMessage(
+                session, new TextMessage(REALTIME_PAYLOAD)))
+                .doesNotThrowAnyException();
+        verify(persistenceService).persistMatchedSignals(result);
     }
 
     @Test
@@ -99,6 +130,7 @@ class KisWebSocketHandlerTest {
 
         verify(parser, never()).parse(org.mockito.ArgumentMatchers.anyString());
         verifyNoInteractions(evaluationService);
+        verifyNoInteractions(persistenceService);
     }
 
     private KisRealtimeTradePrice trade() {

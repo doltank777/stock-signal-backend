@@ -2,6 +2,7 @@ package com.stockapp.external.kis;
 
 import com.stockapp.domain.signal.realtime.RealtimeSignalConditionResult;
 import com.stockapp.domain.signal.realtime.RealtimeSignalEvaluationResult;
+import com.stockapp.domain.signal.realtime.RealtimeSignalPersistenceService;
 import com.stockapp.domain.signal.realtime.RealtimeTradeSignalEvaluationService;
 import com.stockapp.external.kis.dto.KisRealtimeTradePrice;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +22,7 @@ public class KisWebSocketHandler extends TextWebSocketHandler {
 
     private final KisRealtimeTradeParser kisRealtimeTradeParser;
     private final RealtimeTradeSignalEvaluationService evaluationService;
+    private final RealtimeSignalPersistenceService persistenceService;
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
@@ -66,12 +68,18 @@ public class KisWebSocketHandler extends TextWebSocketHandler {
             );
 
             evaluationService.evaluate(tradePrice)
-                    .ifPresent(this::logMatchedConditions);
+                    .ifPresent(this::persistAndLogMatchedConditions);
         } catch (RuntimeException e) {
             log.error(
                     "KIS 실시간 체결 평가 실패 - sessionId: {}, stockCode: {}",
                     session.getId(), stockCode, e);
         }
+    }
+
+    private void persistAndLogMatchedConditions(
+            RealtimeSignalEvaluationResult result) {
+        persistenceService.persistMatchedSignals(result);
+        logMatchedConditions(result);
     }
 
     private void logMatchedConditions(RealtimeSignalEvaluationResult result) {

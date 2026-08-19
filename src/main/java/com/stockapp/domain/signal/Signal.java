@@ -1,5 +1,6 @@
 package com.stockapp.domain.signal;
 
+import com.stockapp.domain.screening.SearchCondition;
 import com.stockapp.domain.stock.Stock;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -22,6 +23,10 @@ public class Signal {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "stock_id", nullable = false)
     private Stock stock;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "search_condition_id")
+    private SearchCondition searchCondition;
 
     // 신호 종류: 거래량 급증, 이동평균 돌파 등
     @Enumerated(EnumType.STRING)
@@ -47,19 +52,22 @@ public class Signal {
 
     private Signal(
             Stock stock,
+            SearchCondition searchCondition,
             SignalType signalType,
             String message,
             Long baseValue,
             Long currentValue,
-            Double changeRate
+            Double changeRate,
+            LocalDateTime detectedAt
     ) {
         this.stock = stock;
+        this.searchCondition = searchCondition;
         this.signalType = signalType;
         this.message = message;
         this.baseValue = baseValue;
         this.currentValue = currentValue;
         this.changeRate = changeRate;
-        this.detectedAt = LocalDateTime.now();
+        this.detectedAt = detectedAt;
     }
 
     public static Signal createVolumeSpike(
@@ -70,11 +78,13 @@ public class Signal {
     ) {
         return new Signal(
                 stock,
+                null,
                 SignalType.VOLUME_SPIKE,
                 "거래량 급증 신호 발생",
                 averageVolume,
                 currentVolume,
-                changeRate
+                changeRate,
+                LocalDateTime.now()
         );
     }
 
@@ -86,11 +96,39 @@ public class Signal {
     ) {
         return new Signal(
                 stock,
+                null,
                 SignalType.MOVING_AVERAGE_BREAKOUT,
                 "이동평균 돌파 신호 발생",
                 averagePrice,
                 currentPrice,
-                changeRate
+                changeRate,
+                LocalDateTime.now()
+        );
+    }
+
+    public static Signal createSearchConditionMatch(
+            Stock stock,
+            SearchCondition searchCondition,
+            LocalDateTime detectedAt
+    ) {
+        if (stock == null) {
+            throw new IllegalArgumentException("stock is required");
+        }
+        if (searchCondition == null) {
+            throw new IllegalArgumentException("searchCondition is required");
+        }
+        if (detectedAt == null) {
+            throw new IllegalArgumentException("detectedAt is required");
+        }
+        return new Signal(
+                stock,
+                searchCondition,
+                SignalType.SEARCH_CONDITION_MATCH,
+                "검색식 SIGNAL 조건 일치",
+                null,
+                null,
+                null,
+                detectedAt
         );
     }
 }

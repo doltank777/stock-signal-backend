@@ -2,6 +2,7 @@ package com.stockapp.domain.signal;
 
 public enum SignalType {
 
-    VOLUME_SPIKE,          // 거래량 급증
-    MOVING_AVERAGE_BREAKOUT   // 이동평균 돌파
+    VOLUME_SPIKE,             // 거래량 급증
+    MOVING_AVERAGE_BREAKOUT,  // 이동평균 돌파
+    SEARCH_CONDITION_MATCH    // 관리자 검색식 SIGNAL 조건 일치
 }
