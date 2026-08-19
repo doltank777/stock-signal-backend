@@ -2,8 +2,9 @@
 
 ## 🧩 프로젝트 소개
 
-한국 주식 데이터를 수집하고 조건식을 기반으로 종목을 분석하여
-Signal을 생성하고 사용자에게 Push 알림을 제공하는 서비스입니다.
+한국 주식 데이터를 수집하고 관리자가 등록한 검색식을 기반으로 종목을 분석하여
+Signal을 생성하는 서비스입니다. Push 인프라는 구축되어 있으며 현재 SearchCondition 기반
+Signal 저장 경로와의 연계는 후속 작업입니다.
 
 단순 시세 조회 앱이 아니라 다음 흐름의 실서비스 MVP를 목표로 합니다.
 
@@ -14,9 +15,10 @@ Signal을 생성하고 사용자에게 Push 알림을 제공하는 서비스입�
 → 사용자 Push 알림
 ```
 
-현재 기존 Signal 조건 분석 기능에 더해, 관리자가 검색식을 직접 등록하고 관리할 수 있도록 **DB 기반 검색식 관리 구조**를 구축하고 있습니다.
+관리자가 검색식을 직접 등록하고 관리하며, 해당 검색식의 SCREENING/SIGNAL Rule을
+실제 전체시장 및 실시간 체결 평가에 사용하는 **DB 기반 검색식 실행 구조**를 구축했습니다.
 
-최종 목표 구조는 다음과 같습니다.
+현재 Signal 처리 구조는 다음과 같습니다.
 
 ```text
 관리자 Web
@@ -24,9 +26,8 @@ Signal을 생성하고 사용자에게 Push 알림을 제공하는 서비스입�
 → DB 저장
 → 전체 종목 Screening
 → 후보 종목 선정
-→ KIS WebSocket 실시간 감시
+→ realtimeEnabled 후보의 KIS WebSocket 실시간 감시
 → Signal 생성
-→ Push
 ```
 
 ---
@@ -105,7 +106,7 @@ ADMIN
 → MAX SUBSCRIBE OVER
 ```
 
-따라서 현재 확인된 구독 제한은:
+따라서 현재 프로젝트의 실제 테스트 및 운영 기준은:
 
 ```text
 WebSocket 1 Session
@@ -114,17 +115,18 @@ WebSocket 1 Session
 
 입니다.
 
-전체 종목을 WebSocket으로 직접 감시하는 대신 향후:
+전체 감시 대상은 다음과 같이 여러 세션으로 나누어 구독합니다.
 
 ```text
-전체 종목
-→ REST Screening
-→ 후보 선정
-→ 상위 40종목
-→ WebSocket 실시간 감시
+전체시장 Screening
+→ realtimeEnabled 후보 선정
+→ 감시 대상을 40종목씩 partition
+→ 여러 WebSocket Session 생성
+→ 각 Session에서 최대 40종목 실시간 감시
 ```
 
-구조로 확장할 예정입니다.
+40종목은 현재 프로젝트에서 실제 확인한 세션별 운영 기준이며, 전체 감시 대상을 앞의
+40종목으로 제한한다는 의미가 아닙니다.
 
 ---
 
@@ -144,38 +146,26 @@ StockPriceScheduler
 → stock_prices 저장
 ```
 
-REST 데이터는 향후 전체 시장의 1차 Screening 데이터로 활용할 예정입니다.
+이 Scheduler는 장중 현재가 스냅샷을 `stock_prices`에 보조 수집하는 경로입니다.
 
 ---
 
 # 📈 Signal 분석
 
-현재 Signal 분석은 기존 Java 코드 기반 조건으로 동작하고 있습니다.
-
-## 거래량 급증
-
-조건:
-
-```text
-현재 거래량 >= 최근 평균 거래량 × 2
-```
-
-## 이동평균 돌파
-
-현재 구현 조건:
-
-```text
-현재가 > 최근 가격 데이터 평균
-```
+Signal 조건은 Java 코드에 고정하지 않고 관리자가 등록한 SearchCondition의 SIGNAL Rule로
+평가합니다. 실시간 체결값과 필요한 일봉 이력을 결합해 검색식별 일치 여부를 계산합니다.
 
 ## 중복 Signal 방지
 
 ```text
 동일 종목
-+ 동일 SignalType
++ 동일 SearchCondition
 + 최근 30분
 → 중복 생성 방지
 ```
+
+Signal은 특정 종목이 특정 관리자 SearchCondition의 SIGNAL 조건에 언제 일치했는지를
+기록하는 이벤트입니다.
 
 ---
 
@@ -192,16 +182,15 @@ KisWebSocketHandler
 ↓
 실시간 체결 데이터 파싱
 ↓
-RealtimeSignalService
+RealtimeWatchTargetRegistry에서 종목별 SearchCondition 조회
 ↓
-조건 분석
+SearchCondition SIGNAL Rule 평가
 ↓
-Signal 생성
-↓
-Push
+일치한 SearchCondition별 Signal 저장
 ```
 
-실제 Android 기기에서 Signal 발생 후 Push 수신까지 확인되었습니다.
+전체시장 Screening 결과 중 `realtimeEnabled` 검색식에 일치한 후보만 감시 대상으로 구성하며,
+실시간 평가와 저장은 `RealtimeSignalEvaluator`, `RealtimeSignalPersistenceService`가 담당합니다.
 
 ---
 
@@ -210,16 +199,17 @@ Push
 * Expo Push Token 저장
 * Firebase Cloud Messaging V1
 * Expo Push Service
-* Signal 발생 시 Push 연계
 * Android 실제 기기 Push 수신 확인 완료
+
+Push 발송 인프라와 기기 수신은 검증했지만, 현재 SearchCondition 기반 Signal persistence와
+Push 발송의 연결은 후속 작업입니다.
 
 ---
 
 # 🔎 DB 기반 검색식 관리
 
-기존 Signal 조건은 Java 코드에 하드코딩되어 있습니다.
-
-이를 관리자가 웹 관리자 페이지에서 검색식을 등록할 수 있는 구조로 변경하기 위해 DB 기반 검색식 도메인을 추가했습니다.
+관리자가 웹 관리자 페이지에서 검색식을 등록하고 실제 분석에 사용할 수 있도록
+DB 기반 검색식 도메인과 실행 구조를 구현했습니다.
 
 현재 구현된 검색식 관리 구조:
 
@@ -271,10 +261,10 @@ Candidate
 → WebSocket
 → SIGNAL 조건
 → Signal
-→ Push
 ```
 
-현재는 **검색식 DB 등록 및 관리 기능까지만 구현되어 있으며**, DB 검색식을 실제 전체 종목 분석에 사용하는 Screening Engine은 향후 단계에서 구현합니다.
+활성 SearchCondition의 SCREENING Rule을 KOSPI/KOSDAQ 전체 종목에 적용하고,
+그중 `realtimeEnabled` 조건에 일치한 Candidate를 실시간 감시 대상으로 전환합니다.
 
 ---
 
@@ -558,11 +548,14 @@ KIS
 ## 3. 실시간 Signal
 
 ```text
-KIS WebSocket
-→ KisWebSocketHandler
-→ RealtimeSignalService
-→ Signal
-→ Push
+관리자 SearchCondition
+→ KOSPI/KOSDAQ 전체시장 SCREENING Rule 평가
+→ realtimeEnabled Candidate
+→ RealtimeWatchTargetRegistry
+→ 40종목 단위 KIS WebSocket 다중 세션 구독
+→ 실시간 체결 수신
+→ SearchCondition SIGNAL Rule 평가
+→ 일치한 SearchCondition별 Signal 저장
 ```
 
 ---
@@ -575,16 +568,14 @@ KIS WebSocket
 → SearchConditionRule 저장
 ```
 
-향후:
-
 ```text
 DB 활성 검색식
 → Screening Engine
 → 전체 종목 검사
 → Candidate
 → Priority
-→ Top 40
-→ WebSocket
+→ realtimeEnabled 감시 대상
+→ 40종목 단위 WebSocket 다중 세션
 ```
 
 ---
@@ -603,6 +594,20 @@ GET  /api/auth/me
 
 ```http
 GET /api/signals
+```
+
+최근 Signal을 발생 시각 내림차순으로 최대 50건 조회합니다. 인증이 필요합니다.
+
+```json
+{
+  "id": 100,
+  "stockCode": "005930",
+  "stockName": "삼성전자",
+  "searchConditionId": 3,
+  "searchConditionName": "거래량 증가 + 이동평균 돌파",
+  "message": "검색식 SIGNAL 조건 일치",
+  "detectedAt": "2026-08-19T10:30:00"
+}
 ```
 
 ## 현재가
@@ -632,6 +637,27 @@ PATCH /api/admin/search-conditions/{id}/enabled
 
 ---
 
+# ✅ MySQL Schema 검증
+
+`schema-validate` profile은 Entity와 실제 local MySQL schema의 일치 여부만 검증합니다.
+
+* `ddl-auto=validate`
+* non-web 실행
+* WebSocket startup 및 Scheduler 차단
+* screening/daily runner 차단
+* 검증 완료 후 context 종료
+
+Windows PowerShell:
+
+```powershell
+.\gradlew.bat build --no-daemon -x test
+
+java -jar build/libs/stock-signal-backend-0.0.1-SNAPSHOT.jar `
+  --spring.profiles.active=local,schema-validate
+```
+
+---
+
 # ✅ 현재 구현 완료
 
 * 회원가입
@@ -648,16 +674,16 @@ PATCH /api/admin/search-conditions/{id}/enabled
 * Redis Access Token 캐싱
 * 현재가 DB 저장
 * 전체 종목 보조 수집 Scheduler
-* 거래량 급증 Signal
-* 이동평균 돌파 Signal
-* Signal 중복 방지
+* 관리자 SearchCondition SCREENING/SIGNAL Rule 평가
+* KOSPI/KOSDAQ 전체시장 Screening
+* realtimeEnabled Candidate 기반 실시간 감시 대상 구성
+* 종목 + SearchCondition 기준 30분 Signal 중복 방지
 * KIS WebSocket Approval Key
 * KIS WebSocket 연결
-* 단일 Session 다중 종목 구독
-* WebSocket 40종목 제한 확인
+* 감시 대상을 40종목씩 partition하는 다중 WebSocket Session 관리
+* 세션별 WebSocket 40종목 운영 기준 확인
 * 실시간 체결 수신
-* RealtimeSignalService 연동
-* Signal → Push 연동
+* SearchCondition별 실시간 Signal 평가 및 저장
 * Android 실제 Push 수신
 * 검색식 DB 모델
 * 검색식 Rule DB 모델
@@ -672,24 +698,14 @@ PATCH /api/admin/search-conditions/{id}/enabled
 
 # 🚧 다음 개발 예정
 
-현재 검색식 관리 기능은 DB 등록 및 CRUD까지 구현되어 있습니다.
-
 다음 주요 개발 단계:
 
 ```text
-관리자 Web 프로젝트
+SearchCondition 기반 Signal
 ↓
-검색식 관리 화면
+사용자별 알림 대상 결정
 ↓
-DB 검색식 실행 Screening Engine
-↓
-전체 종목 1차 Screening
-↓
-Candidate Priority 계산
-↓
-WebSocket 후보 Top 40 선정
-↓
-WebSocket 구독 종목 동적 교체
+Expo Push 발송 연계
 ```
 
 장기 운영 시에는 추가로:
@@ -699,6 +715,7 @@ WebSocket 구독 종목 동적 교체
 * 일 단위 데이터 집계
 * DB 인덱스 최적화
 * WebSocket 재연결 안정화
+* WebSocket 구독 대상 동적 교체
 * 서버 배포
 * HTTPS / Domain
 * Docker 기반 운영 환경
