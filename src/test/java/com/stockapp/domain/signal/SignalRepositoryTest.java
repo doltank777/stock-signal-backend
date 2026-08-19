@@ -6,6 +6,7 @@ import com.stockapp.domain.stock.MarketType;
 import com.stockapp.domain.stock.Stock;
 import com.stockapp.domain.stock.StockRepository;
 import jakarta.persistence.EntityManager;
+import org.hibernate.Hibernate;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
@@ -80,10 +81,56 @@ class SignalRepositoryTest {
                         SignalType.MOVING_AVERAGE_BREAKOUT);
     }
 
+    @Test
+    void fetchesStockAndOptionalSearchConditionWithoutDroppingLegacySignals() {
+        Stock stock = stockRepository.saveAndFlush(Stock.builder()
+                .stockCode("035420")
+                .stockName("NAVER")
+                .marketType(MarketType.KOSPI)
+                .build());
+        SearchCondition searchCondition = searchConditionRepository.saveAndFlush(
+                condition("거래량 증가 + 이동평균 돌파"));
+        insertLegacySignal(
+                stock.getId(),
+                "VOLUME_SPIKE",
+                "거래량 급증 신호 발생",
+                LocalDateTime.of(2026, 8, 19, 9, 0));
+        signalRepository.saveAndFlush(Signal.createSearchConditionMatch(
+                stock,
+                searchCondition,
+                LocalDateTime.of(2026, 8, 19, 10, 0)));
+        entityManager.clear();
+
+        var signals = signalRepository.findAllWithStockOrderByDetectedAtDesc();
+
+        assertThat(signals)
+                .extracting(Signal::getSignalType)
+                .containsExactly(
+                        SignalType.SEARCH_CONDITION_MATCH,
+                        SignalType.VOLUME_SPIKE);
+        assertThat(Hibernate.isInitialized(signals.get(0).getStock())).isTrue();
+        assertThat(Hibernate.isInitialized(signals.get(0).getSearchCondition())).isTrue();
+        assertThat(signals.get(0).getSearchCondition().getName())
+                .isEqualTo("거래량 증가 + 이동평균 돌파");
+        assertThat(signals.get(1).getSearchCondition()).isNull();
+    }
+
     private void insertLegacySignal(
             Long stockId,
             String signalType,
             String message) {
+        insertLegacySignal(
+                stockId,
+                signalType,
+                message,
+                LocalDateTime.of(2026, 8, 19, 10, 0));
+    }
+
+    private void insertLegacySignal(
+            Long stockId,
+            String signalType,
+            String message,
+            LocalDateTime detectedAt) {
         entityManager.createNativeQuery("""
                         INSERT INTO signals (
                             stock_id, search_condition_id, signal_type, message,
@@ -93,7 +140,7 @@ class SignalRepositoryTest {
                 .setParameter(1, stockId)
                 .setParameter(2, signalType)
                 .setParameter(3, message)
-                .setParameter(4, LocalDateTime.of(2026, 8, 19, 10, 0))
+                .setParameter(4, detectedAt)
                 .executeUpdate();
     }
 

@@ -16,11 +16,12 @@ public interface SignalRepository extends JpaRepository<Signal, Long> {
             LocalDateTime detectedAt
     );
 
-    // ✅ 추천 리스트 조회 - Stock까지 함께 조회해서 LazyInitializationException 방지
+    // ✅ 추천 리스트 조회 - Stock과 SearchCondition을 함께 조회해서 지연 로딩 방지
     @Query("""
             SELECT s
             FROM Signal s
             JOIN FETCH s.stock
+            LEFT JOIN FETCH s.searchCondition
             ORDER BY s.detectedAt DESC
             """)
     List<Signal> findAllWithStockOrderByDetectedAtDesc();
