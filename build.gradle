@@ -116,6 +116,31 @@ tasks.register('screeningRun', org.springframework.boot.gradle.tasks.run.BootRun
 	]
 }
 
+tasks.register('kisWebSocketProbe', org.springframework.boot.gradle.tasks.run.BootRun) {
+	group = 'application'
+	description = 'Runs the isolated KIS WebSocket subscription probe.'
+	mainClass = 'com.stockapp.external.kis.probe.KisWebSocketProbeApplication'
+	def devToolsJar = configurations.developmentOnly.incoming.artifactView {
+		componentFilter { componentId ->
+			componentId instanceof org.gradle.api.artifacts.component.ModuleComponentIdentifier &&
+					componentId.group == 'org.springframework.boot' &&
+					componentId.module == 'spring-boot-devtools'
+		}
+	}.files
+	classpath = sourceSets.main.runtimeClasspath - devToolsJar
+	args '--spring.profiles.active=local,kis-websocket-probe'
+	if (project.hasProperty('kisWebSocketProbeStockCodes')) {
+		args "--kis-websocket-probe.stock-codes=${project.property('kisWebSocketProbeStockCodes')}"
+	}
+	systemProperty 'file.encoding', 'UTF-8'
+	jvmArgs = [
+			'-Dfile.encoding=UTF-8',
+			'-Dconsole.encoding=UTF-8',
+			'-Dsun.stdout.encoding=UTF-8',
+			'-Dsun.stderr.encoding=UTF-8'
+	]
+}
+
 tasks.withType(JavaCompile).configureEach {
 	options.encoding = 'UTF-8'
 }

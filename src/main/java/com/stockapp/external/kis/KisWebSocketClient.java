@@ -25,14 +25,14 @@ public class KisWebSocketClient {
 
     private final KisProperties kisProperties;
     private final KisWebSocketApprovalClient kisWebSocketApprovalClient;
-    private final KisWebSocketHandler kisWebSocketHandler;
+    private final KisWebSocketMessageHandler kisWebSocketHandler;
     private final KisWebSocketConnector kisWebSocketConnector;
     private final KisWebSocketSubscriptionTracker subscriptionTracker;
 
     public KisWebSocketClient(
             KisProperties kisProperties,
             KisWebSocketApprovalClient kisWebSocketApprovalClient,
-            KisWebSocketHandler kisWebSocketHandler,
+            KisWebSocketMessageHandler kisWebSocketHandler,
             KisWebSocketConnector kisWebSocketConnector,
             KisWebSocketSubscriptionTracker subscriptionTracker
     ) {

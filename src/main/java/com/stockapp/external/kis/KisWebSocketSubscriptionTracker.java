@@ -9,16 +9,19 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicLong;
 
 @Component
 public class KisWebSocketSubscriptionTracker {
 
     private final ConcurrentHashMap<Key, Entry> entries = new ConcurrentHashMap<>();
+    private final AtomicLong sequence = new AtomicLong();
 
     public void registerPending(String sessionId, String trId, String stockCode,
                                 KisWebSocketOperation operation) {
         Key key = new Key(sessionId, trId, stockCode, operation);
-        if (entries.putIfAbsent(key, new Entry(key)) != null) {
+        if (entries.putIfAbsent(
+                key, new Entry(key, sequence.getAndIncrement())) != null) {
             throw new IllegalStateException("subscription request is already registered");
         }
     }
@@ -62,9 +65,8 @@ public class KisWebSocketSubscriptionTracker {
     public List<KisWebSocketSubscriptionResult> snapshot(String sessionId) {
         return entries.values().stream()
                 .filter(entry -> entry.key.sessionId().equals(sessionId))
+                .sorted(java.util.Comparator.comparingLong(Entry::sequence))
                 .map(Entry::snapshot)
-                .sorted(java.util.Comparator.comparing(
-                        KisWebSocketSubscriptionResult::stockCode))
                 .toList();
     }
 
@@ -95,11 +97,17 @@ public class KisWebSocketSubscriptionTracker {
 
     private static final class Entry {
         private final Key key;
+        private final long sequence;
         private final CompletableFuture<KisWebSocketSubscriptionResult> result =
                 new CompletableFuture<>();
 
-        private Entry(Key key) {
+        private Entry(Key key, long sequence) {
             this.key = key;
+            this.sequence = sequence;
+        }
+
+        private long sequence() {
+            return sequence;
         }
 
         private boolean complete(KisWebSocketSubscriptionResult value) {

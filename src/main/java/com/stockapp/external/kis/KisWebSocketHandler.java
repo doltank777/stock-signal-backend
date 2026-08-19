@@ -18,7 +18,8 @@ import java.util.List;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class KisWebSocketHandler extends TextWebSocketHandler {
+public class KisWebSocketHandler extends TextWebSocketHandler
+        implements KisWebSocketMessageHandler {
 
     private final KisRealtimeTradeParser kisRealtimeTradeParser;
     private final KisWebSocketControlResponseParser controlResponseParser;

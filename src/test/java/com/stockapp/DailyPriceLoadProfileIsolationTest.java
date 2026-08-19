@@ -172,6 +172,32 @@ class DailyPriceLoadProfileIsolationTest {
     }
 
     @Test
+    void kisWebSocketProbeDisablesNormalEntryPointsAndIsNonWeb()
+            throws IOException {
+        StandardEnvironment environment = environment(
+                "local", "kis-websocket-probe");
+
+        assertThat(matchesProfile(DailyPriceInitialLoadRunner.class, environment)).isFalse();
+        assertThat(matchesProfile(DailyPriceUpdateRunner.class, environment)).isFalse();
+        assertThat(matchesProfile(ScreeningRunRunner.class, environment)).isFalse();
+        assertThat(matchesProfile(KisWebSocketStartupRunner.class, environment)).isFalse();
+
+        List<PropertySource<?>> propertySources = new YamlPropertySourceLoader().load(
+                "kis-websocket-probe",
+                new org.springframework.core.io.ClassPathResource(
+                        "application-kis-websocket-probe.yaml"));
+        PropertySource<?> properties = propertySources.getFirst();
+        assertThat(properties.getProperty("spring.main.web-application-type"))
+                .isEqualTo("none");
+        assertThat(properties.getProperty("spring.task.scheduling.enabled"))
+                .isEqualTo(false);
+        assertThat(properties.getProperty("spring.devtools.restart.enabled"))
+                .isEqualTo(false);
+        assertThat(properties.getProperty("spring.devtools.livereload.enabled"))
+                .isEqualTo(false);
+    }
+
+    @Test
     void applicationClosesContextAfterDailyPriceLoadStartupCompletes() {
         ConfigurableApplicationContext context = org.mockito.Mockito.mock(
                 ConfigurableApplicationContext.class);

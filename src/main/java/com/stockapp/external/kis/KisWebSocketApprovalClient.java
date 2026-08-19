@@ -4,7 +4,6 @@ import com.stockapp.external.kis.dto.KisWebSocketApprovalRequest;
 import com.stockapp.external.kis.dto.KisWebSocketApprovalResponse;
 import com.stockapp.global.config.KisProperties;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -19,11 +18,11 @@ public class KisWebSocketApprovalClient {
             "kis:websocket-approval-key:";
 
     private final KisProperties kisProperties;
-    private final StringRedisTemplate redisTemplate;
+    private final KisWebSocketApprovalKeyCache approvalKeyCache;
 
     public String getApprovalKey() {
         String cacheKey = approvalCacheKey();
-        String cachedApprovalKey = redisTemplate.opsForValue().get(cacheKey);
+        String cachedApprovalKey = approvalKeyCache.get(cacheKey);
 
         if (cachedApprovalKey != null && !cachedApprovalKey.isBlank()) {
             return cachedApprovalKey;
@@ -31,7 +30,7 @@ public class KisWebSocketApprovalClient {
 
         KisWebSocketApprovalResponse response = requestApprovalKey();
 
-        redisTemplate.opsForValue().set(
+        approvalKeyCache.put(
                 cacheKey,
                 response.getApprovalKey(),
                 Duration.ofHours(23)
