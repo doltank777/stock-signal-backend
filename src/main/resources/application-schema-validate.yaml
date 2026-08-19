@@ -1,0 +1,12 @@
+spring:
+  main:
+    web-application-type: none
+  jpa:
+    hibernate:
+      ddl-auto: validate
+  devtools:
+    add-properties: false
+    restart:
+      enabled: false
+    livereload:
+      enabled: false

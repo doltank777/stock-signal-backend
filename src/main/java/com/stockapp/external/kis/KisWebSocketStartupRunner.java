@@ -8,7 +8,7 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 @Component
-@Profile("local & !test & !daily-price-load & !daily-price-update & !screening-run")
+@Profile("local & !test & !daily-price-load & !daily-price-update & !screening-run & !schema-validate")
 @RequiredArgsConstructor
 public class KisWebSocketStartupRunner implements ApplicationRunner {
 

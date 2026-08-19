@@ -143,6 +143,35 @@ class DailyPriceLoadProfileIsolationTest {
     }
 
     @Test
+    void schemaValidateProfileDisablesAutomaticEntryPointsAndIsNonWeb() throws IOException {
+        StandardEnvironment environment = environment("local", "schema-validate");
+
+        assertThat(matchesProfile(DailyPriceInitialLoadRunner.class, environment)).isFalse();
+        assertThat(matchesProfile(DailyPriceUpdateRunner.class, environment)).isFalse();
+        assertThat(matchesProfile(ScreeningRunRunner.class, environment)).isFalse();
+        assertThat(matchesProfile(DailyPriceUpdateScheduler.class, environment)).isFalse();
+        assertThat(matchesProfile(KisWebSocketStartupRunner.class, environment)).isFalse();
+        assertThat(matchesProfile(StockPriceScheduler.class, environment)).isFalse();
+        assertThat(matchesProfile(securityFilterChainMethod(), environment)).isFalse();
+
+        List<PropertySource<?>> propertySources = new YamlPropertySourceLoader().load(
+                "schema-validate",
+                new org.springframework.core.io.ClassPathResource(
+                        "application-schema-validate.yaml"));
+        PropertySource<?> properties = propertySources.getFirst();
+        assertThat(properties.getProperty("spring.main.web-application-type"))
+                .isEqualTo("none");
+        assertThat(properties.getProperty("spring.jpa.hibernate.ddl-auto"))
+                .isEqualTo("validate");
+        assertThat(properties.getProperty("spring.devtools.restart.enabled"))
+                .isEqualTo(false);
+        assertThat(properties.getProperty("spring.devtools.livereload.enabled"))
+                .isEqualTo(false);
+        assertThat(properties.getProperty("spring.devtools.add-properties"))
+                .isEqualTo(false);
+    }
+
+    @Test
     void applicationClosesContextAfterDailyPriceLoadStartupCompletes() {
         ConfigurableApplicationContext context = org.mockito.Mockito.mock(
                 ConfigurableApplicationContext.class);
@@ -174,6 +203,19 @@ class DailyPriceLoadProfileIsolationTest {
                 ConfigurableApplicationContext.class);
         MockEnvironment environment = new MockEnvironment();
         environment.setActiveProfiles("screening-run");
+        when(context.getEnvironment()).thenReturn(environment);
+
+        StockSignalBackendApplication.closeAfterBatch(context);
+
+        verify(context).close();
+    }
+
+    @Test
+    void applicationClosesContextAfterSchemaValidationCompletes() {
+        ConfigurableApplicationContext context = org.mockito.Mockito.mock(
+                ConfigurableApplicationContext.class);
+        MockEnvironment environment = new MockEnvironment();
+        environment.setActiveProfiles("local", "schema-validate");
         when(context.getEnvironment()).thenReturn(environment);
 
         StockSignalBackendApplication.closeAfterBatch(context);
