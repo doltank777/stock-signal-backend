@@ -40,13 +40,17 @@ public class KisWebSocketSubscriptionTracker {
 
     public boolean handle(String sessionId, KisWebSocketControlResponse response) {
         Entry entry = findPending(sessionId, response.trId(), response.trKey());
+        if (entry == null && response.isAckLike()) {
+            entry = findUniqueCompatiblePending(sessionId, response);
+        }
         if (entry == null) {
             return false;
         }
         KisSubscriptionStatus status = response.isSuccess()
                 ? KisSubscriptionStatus.CONFIRMED : KisSubscriptionStatus.FAILED;
         boolean completed = entry.complete(new KisWebSocketSubscriptionResult(
-                sessionId, response.trId(), response.trKey(), entry.request.operation(),
+                sessionId, entry.request.trId(), entry.request.stockCode(),
+                entry.request.operation(),
                 status, response.messageCode(), response.message()));
         if (completed && status == KisSubscriptionStatus.CONFIRMED) {
             updateActive(entry.request);
@@ -118,6 +122,30 @@ public class KisWebSocketSubscriptionTracker {
                 .filter(entry -> entry.request.stockCode().equals(stockCode))
                 .filter(entry -> !entry.result.isDone())
                 .findFirst().orElse(null);
+    }
+
+    private Entry findUniqueCompatiblePending(
+            String sessionId,
+            KisWebSocketControlResponse response
+    ) {
+        List<Entry> sessionPending = entries.values().stream()
+                .filter(entry -> entry.request.sessionId().equals(sessionId))
+                .filter(entry -> !entry.result.isDone())
+                .toList();
+        if (!hasText(response.trId()) && sessionPending.size() != 1) {
+            return null;
+        }
+        List<Entry> compatible = sessionPending.stream()
+                .filter(entry -> !hasText(response.trId())
+                        || entry.request.trId().equals(response.trId()))
+                .filter(entry -> !hasText(response.trKey())
+                        || entry.request.stockCode().equals(response.trKey()))
+                .toList();
+        return compatible.size() == 1 ? compatible.getFirst() : null;
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 
     private void updateActive(KisWebSocketSubscriptionRequest request) {

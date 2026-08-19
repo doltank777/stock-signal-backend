@@ -265,4 +265,32 @@ class KisWebSocketClientTest {
                 .hasMessageContaining("OPSP0008");
         assertThat(session.activeStockCodes()).containsExactly("005930");
     }
+
+    @Test
+    void completesUnsubscribeFromUniqueAckLikeResponseWithoutCorrelationKeys()
+            throws Exception {
+        when(webSocketSession.getId()).thenReturn("session-1");
+        when(webSocketSession.isOpen()).thenReturn(true);
+        subscriptionTracker.registerPending(
+                "session-1", "H0STCNT0", "005930",
+                KisWebSocketOperation.SUBSCRIBE);
+        subscriptionTracker.handle("session-1", new KisWebSocketControlResponse(
+                "H0STCNT0", "005930", "0", null, "SUBSCRIBE SUCCESS"));
+        KisWebSocketSession session = new KisWebSocketSession(
+                webSocketSession, List.of("005930"),
+                subscriptionTracker, "approval-key");
+        doAnswer(invocation -> {
+            subscriptionTracker.handle("session-1",
+                    new KisWebSocketControlResponse(
+                            null, "", "0", "OPSP0000", "accepted"));
+            return null;
+        }).when(webSocketSession).sendMessage(any(TextMessage.class));
+
+        KisWebSocketSubscriptionResult result =
+                client.unsubscribe(session, "005930");
+
+        assertThat(result.status()).isEqualTo(KisSubscriptionStatus.CONFIRMED);
+        assertThat(result.stockCode()).isEqualTo("005930");
+        assertThat(session.activeStockCodes()).isEmpty();
+    }
 }

@@ -54,6 +54,30 @@ class KisWebSocketProbeHandlerTest {
     }
 
     @Test
+    void keepsPendingStateForParsedButUncorrelatedAndParseFailedJson()
+            throws Exception {
+        KisWebSocketSubscriptionTracker tracker = new KisWebSocketSubscriptionTracker();
+        KisWebSocketProbeProperties properties = new KisWebSocketProbeProperties();
+        properties.setLogControlPayload(true);
+        KisWebSocketProbeHandler handler = handler(tracker, properties);
+        WebSocketSession session = mock(WebSocketSession.class);
+        when(session.getId()).thenReturn("session-1");
+        tracker.registerPending("session-1", "H0STCNT0", "005930",
+                KisWebSocketOperation.SUBSCRIBE);
+
+        handler.handleTextMessage(session, new TextMessage("""
+                {"header":{"tr_id":"WRONG","tr_key":""},
+                 "body":{"rt_cd":"0","msg_cd":"OPSP0000","msg1":"accepted"},
+                 "approval_key":"must-not-be-logged"}
+                """));
+        handler.handleTextMessage(session, new TextMessage(
+                "{\"type\":\"notice\",\"token\":\"must-not-be-logged\"}"));
+
+        assertThat(tracker.snapshot("session-1").getFirst().status())
+                .isEqualTo(KisSubscriptionStatus.PENDING);
+    }
+
+    @Test
     void completesPendingRequestOnCloseAndTransportError() {
         KisWebSocketSubscriptionTracker tracker =
                 new KisWebSocketSubscriptionTracker();
@@ -77,7 +101,14 @@ class KisWebSocketProbeHandlerTest {
 
     private KisWebSocketProbeHandler handler(
             KisWebSocketSubscriptionTracker tracker) {
+        return handler(tracker, new KisWebSocketProbeProperties());
+    }
+
+    private KisWebSocketProbeHandler handler(
+            KisWebSocketSubscriptionTracker tracker,
+            KisWebSocketProbeProperties properties) {
         return new KisWebSocketProbeHandler(
-                new KisWebSocketControlResponseParser(new ObjectMapper()), tracker);
+                new KisWebSocketControlResponseParser(new ObjectMapper()), tracker,
+                new ObjectMapper(), properties);
     }
 }

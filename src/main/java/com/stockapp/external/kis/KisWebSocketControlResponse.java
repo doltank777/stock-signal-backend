@@ -7,6 +7,12 @@ public record KisWebSocketControlResponse(
         String messageCode,
         String message
 ) {
+    public boolean isAckLike() {
+        return returnCode != null && !returnCode.isBlank()
+                && ((messageCode != null && !messageCode.isBlank())
+                || (message != null && !message.isBlank()));
+    }
+
     public boolean isSuccess() {
         return "0".equals(returnCode);
     }

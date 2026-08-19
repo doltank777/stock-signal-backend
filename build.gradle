@@ -141,6 +141,9 @@ tasks.register('kisWebSocketProbe', org.springframework.boot.gradle.tasks.run.Bo
 	if (project.hasProperty('kisWebSocketProbeReplacementStockCode')) {
 		args "--kis-websocket-probe.replacement-stock-code=${project.property('kisWebSocketProbeReplacementStockCode')}"
 	}
+	if (project.hasProperty('kisWebSocketProbeLogControlPayload')) {
+		args "--kis-websocket-probe.log-control-payload=${project.property('kisWebSocketProbeLogControlPayload')}"
+	}
 	systemProperty 'file.encoding', 'UTF-8'
 	jvmArgs = [
 			'-Dfile.encoding=UTF-8',

@@ -93,6 +93,53 @@ class KisWebSocketSubscriptionTrackerTest {
                 .containsExactly("005930");
     }
 
+    @Test
+    void correlatesAckLikeResponseWithoutKeysOnlyToUniquePendingRequest()
+            throws Exception {
+        KisWebSocketSubscriptionTracker tracker = new KisWebSocketSubscriptionTracker();
+        tracker.registerPending("session-1", "H0STCNT0", "005930",
+                KisWebSocketOperation.SUBSCRIBE);
+        tracker.handle("session-1", response("005930", "0"));
+        KisWebSocketSubscriptionRequest unsubscribe = tracker.registerPending(
+                "session-1", "H0STCNT0", "005930",
+                KisWebSocketOperation.UNSUBSCRIBE);
+
+        assertThat(tracker.handle("session-1", ack(null, ""))).isTrue();
+        assertThat(tracker.awaitResult(unsubscribe, Duration.ofMillis(10)).status())
+                .isEqualTo(KisSubscriptionStatus.CONFIRMED);
+        assertThat(tracker.activeStockCodes("session-1")).isEmpty();
+        assertThat(tracker.handle("session-1", ack(null, ""))).isFalse();
+    }
+
+    @Test
+    void rejectsAmbiguousOrExplicitlyMismatchedFallback() {
+        KisWebSocketSubscriptionTracker tracker = new KisWebSocketSubscriptionTracker();
+        assertThat(tracker.handle("session-1", ack(null, ""))).isFalse();
+
+        tracker.registerPending("session-1", "H0STCNT0", "005930",
+                KisWebSocketOperation.SUBSCRIBE);
+        tracker.registerPending("session-1", "H0STCNT0", "000660",
+                KisWebSocketOperation.SUBSCRIBE);
+        assertThat(tracker.handle("session-1", ack(null, ""))).isFalse();
+        assertThat(tracker.handle("session-1", ack("WRONG_TR", ""))).isFalse();
+        assertThat(tracker.activeStockCodes("session-1")).isEmpty();
+    }
+
+    @Test
+    void exactCorrelationTakesPriorityWhenMultipleRequestsArePending() {
+        KisWebSocketSubscriptionTracker tracker = new KisWebSocketSubscriptionTracker();
+        tracker.registerPending("session-1", "H0STCNT0", "005930",
+                KisWebSocketOperation.SUBSCRIBE);
+        tracker.registerPending("session-1", "H0STCNT0", "000660",
+                KisWebSocketOperation.SUBSCRIBE);
+
+        assertThat(tracker.handle("session-1", response("005930", "0"))).isTrue();
+        assertThat(tracker.snapshot("session-1"))
+                .extracting(KisWebSocketSubscriptionResult::status)
+                .containsExactly(KisSubscriptionStatus.CONFIRMED,
+                        KisSubscriptionStatus.PENDING);
+    }
+
     private void complete(
             KisWebSocketSubscriptionTracker tracker,
             KisWebSocketOperation operation
@@ -110,5 +157,10 @@ class KisWebSocketSubscriptionTrackerTest {
                 "H0STCNT0", stockCode, returnCode,
                 "0".equals(returnCode) ? null : "OPSP8996",
                 "0".equals(returnCode) ? "SUBSCRIBE SUCCESS" : "rejected");
+    }
+
+    private KisWebSocketControlResponse ack(String trId, String trKey) {
+        return new KisWebSocketControlResponse(
+                trId, trKey, "0", "OPSP0000", "accepted");
     }
 }

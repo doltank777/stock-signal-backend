@@ -21,15 +21,19 @@ public class KisWebSocketControlResponseParser {
             String trId = text(header, "tr_id");
             String trKey = text(header, "tr_key");
             String returnCode = text(body, "rt_cd");
-            if (trId == null || trKey == null || returnCode == null) {
+            String messageCode = text(body, "msg_cd");
+            String message = text(body, "msg1");
+            if (returnCode == null
+                    || ((messageCode == null || messageCode.isBlank())
+                    && (message == null || message.isBlank()))) {
                 return Optional.empty();
             }
             return Optional.of(new KisWebSocketControlResponse(
                     trId,
                     trKey,
                     returnCode,
-                    text(body, "msg_cd"),
-                    text(body, "msg1")));
+                    messageCode,
+                    message));
         } catch (RuntimeException | java.io.IOException exception) {
             return Optional.empty();
         }

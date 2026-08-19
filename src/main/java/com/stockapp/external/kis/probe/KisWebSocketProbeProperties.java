@@ -17,6 +17,7 @@ public class KisWebSocketProbeProperties {
     private KisWebSocketProbeMode mode = KisWebSocketProbeMode.SUBSCRIBE;
     private String unsubscribeStockCode;
     private String replacementStockCode;
+    private boolean logControlPayload;
 
     public List<String> normalizedStockCodes() {
         if (stockCodes == null || stockCodes.isBlank()) {

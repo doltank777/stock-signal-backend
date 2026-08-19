@@ -38,4 +38,26 @@ class KisWebSocketControlResponseParserTest {
         assertThat(parser.parse("not-json")).isEmpty();
         assertThat(parser.parse("{\"header\":{}}")).isEmpty();
     }
+
+    @Test
+    void parsesAckLikeBodyWhenCorrelationFieldsAreMissingOrBlank() {
+        String responseJson = """
+                {"header":{"tr_key":""},
+                 "body":{"rt_cd":"0","msg_cd":"OPSP0000","msg1":"accepted"}}
+                """;
+
+        assertThat(parser.parse(responseJson)).hasValueSatisfying(response -> {
+            assertThat(response.trId()).isNull();
+            assertThat(response.trKey()).isEmpty();
+            assertThat(response.isAckLike()).isTrue();
+        });
+    }
+
+    @Test
+    void rejectsUnrelatedJsonEvenWhenItIsWellFormed() {
+        assertThat(parser.parse("{\"type\":\"notice\",\"message\":\"connected\"}"))
+                .isEmpty();
+        assertThat(parser.parse("{\"body\":{\"rt_cd\":\"0\"}}"))
+                .isEmpty();
+    }
 }
