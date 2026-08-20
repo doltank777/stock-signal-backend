@@ -44,3 +44,4 @@ out/
 DB_SPEC.md
 AGENTS.md
 
+*.ps1
