@@ -1,6 +1,7 @@
 package com.stockapp.domain.screening.realtime;
 
 import com.stockapp.domain.screening.ScreeningRunService;
+import com.stockapp.domain.screening.LatestScreeningSnapshotRegistry;
 import com.stockapp.domain.screening.dto.ScreeningRunResult;
 import com.stockapp.domain.stock.MarketType;
 import com.stockapp.domain.stock.Stock;
@@ -44,6 +45,9 @@ class RealtimeScreeningSubscriptionServiceTest {
     private ScreeningRunService screeningRunService;
 
     @Mock
+    private LatestScreeningSnapshotRegistry screeningSnapshotRegistry;
+
+    @Mock
     private RealtimeScreeningBaseDateProvider baseDateProvider;
 
     @Mock
@@ -64,6 +68,7 @@ class RealtimeScreeningSubscriptionServiceTest {
         service = new RealtimeScreeningSubscriptionService(
                 stockRepository,
                 screeningRunService,
+                screeningSnapshotRegistry,
                 baseDateProvider,
                 targetBuilder,
                 targetRegistry,
@@ -98,6 +103,7 @@ class RealtimeScreeningSubscriptionServiceTest {
 
         verify(stockRepository).findByMarketTypeInOrderByIdAsc(TARGET_MARKETS);
         verify(screeningRunService).run(stocks, BASE_DATE);
+        verify(screeningSnapshotRegistry).replace(result);
         verify(targetBuilder).build(result);
         InOrder publicationOrder = inOrder(sessionManager, targetRegistry);
         publicationOrder.verify(sessionManager).connectAll(
@@ -128,6 +134,7 @@ class RealtimeScreeningSubscriptionServiceTest {
         assertThatThrownBy(service::initialize).isSameAs(failure);
 
         verifyNoInteractions(targetBuilder);
+        verifyNoInteractions(screeningSnapshotRegistry);
         verify(sessionManager, never()).connectAll(anyList());
         verify(targetRegistry, never()).replace(anyList());
     }

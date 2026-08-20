@@ -1,6 +1,7 @@
 package com.stockapp.domain.screening.realtime;
 
 import com.stockapp.domain.screening.ScreeningRunService;
+import com.stockapp.domain.screening.LatestScreeningSnapshotRegistry;
 import com.stockapp.domain.screening.dto.ScreeningRunResult;
 import com.stockapp.domain.stock.MarketType;
 import com.stockapp.domain.stock.Stock;
@@ -24,6 +25,7 @@ public class RealtimeScreeningSubscriptionService {
 
     private final StockRepository stockRepository;
     private final ScreeningRunService screeningRunService;
+    private final LatestScreeningSnapshotRegistry screeningSnapshotRegistry;
     private final RealtimeScreeningBaseDateProvider baseDateProvider;
     private final RealtimeWatchTargetBuilder targetBuilder;
     private final RealtimeWatchTargetRegistry targetRegistry;
@@ -41,6 +43,7 @@ public class RealtimeScreeningSubscriptionService {
 
         LocalDate baseDate = baseDateProvider.latestBaseDate();
         ScreeningRunResult result = screeningRunService.run(stocks, baseDate);
+        screeningSnapshotRegistry.replace(result);
         List<RealtimeWatchTarget> targets = targetBuilder.build(result);
         List<String> stockCodes = targets.stream()
                 .map(RealtimeWatchTarget::stockCode)
