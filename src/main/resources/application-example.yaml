@@ -41,6 +41,16 @@ kis:
         # KIS 당일 일봉 확정 시각 실검증 전까지 기본 비활성입니다.
         enabled: false
         cron: "0 20 16 * * MON-FRI"
+    finalization:
+      scheduler:
+        # Keep disabled until the KIS final OHLCV probe and production DB
+        # validation are complete. Set an explicit cron before enabling.
+        enabled: false
+        cron: "-"
+        zone: "Asia/Seoul"
+      startup-recovery:
+        # Recovers only the latest execution row when it is not ready.
+        enabled: false
 
 daily-price-load:
   # 비워 두면 Asia/Seoul 기준 어제를 사용합니다.

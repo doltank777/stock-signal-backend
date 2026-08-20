@@ -75,6 +75,17 @@ class DailyPriceFinalizationRecoveryServiceTest {
         }
     }
 
+    @Test
+    void rejectsFutureTargetDate() {
+        assertThatThrownBy(() -> service(new DailyPriceFinalizationRunGuard())
+                .recover(DATE.plusDays(1)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("future");
+        verify(store, never()).start(
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any());
+    }
+
     private DailyPriceFinalizationRecoveryService service(
             DailyPriceFinalizationRunGuard guard) {
         return new DailyPriceFinalizationRecoveryService(

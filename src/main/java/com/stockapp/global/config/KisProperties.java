@@ -33,6 +33,7 @@ public class KisProperties {
         private int maxLookbackYears = 3;
         private int progressLogInterval = 25;
         private Update update = new Update();
+        private Finalization finalization = new Finalization();
     }
 
     @Getter
@@ -57,5 +58,26 @@ public class KisProperties {
     public static class Scheduler {
         private boolean enabled = false;
         private String cron = "0 20 16 * * MON-FRI";
+    }
+
+    @Getter
+    @Setter
+    public static class Finalization {
+        private FinalizationScheduler scheduler = new FinalizationScheduler();
+        private StartupRecovery startupRecovery = new StartupRecovery();
+    }
+
+    @Getter
+    @Setter
+    public static class FinalizationScheduler {
+        private boolean enabled = false;
+        private String cron = "-";
+        private String zone = "Asia/Seoul";
+    }
+
+    @Getter
+    @Setter
+    public static class StartupRecovery {
+        private boolean enabled = false;
     }
 }

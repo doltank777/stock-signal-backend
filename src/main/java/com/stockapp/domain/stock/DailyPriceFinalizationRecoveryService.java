@@ -9,7 +9,9 @@ import org.springframework.stereotype.Service;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -35,10 +37,21 @@ public class DailyPriceFinalizationRecoveryService {
         return executionStore.findIncomplete();
     }
 
+    public Optional<DailyPriceFinalizationExecutionSnapshot>
+    findLatestExecution() {
+        return executionStore.findLatest();
+    }
+
     private DailyPriceFinalizationRecoveryResult execute(
             LocalDate targetTradeDate, boolean skipAlreadyReady) {
         if (targetTradeDate == null) {
             throw new IllegalArgumentException("targetTradeDate is required");
+        }
+        LocalDate today = LocalDate.now(clock.withZone(
+                ZoneId.of("Asia/Seoul")));
+        if (targetTradeDate.isAfter(today)) {
+            throw new IllegalArgumentException(
+                    "targetTradeDate must not be in the future");
         }
         runGuard.acquire();
         try {
