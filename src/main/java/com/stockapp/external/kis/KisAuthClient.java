@@ -13,13 +13,14 @@ import java.time.Duration;
 
 @Component
 @RequiredArgsConstructor
-public class KisAuthClient {
+public class KisAuthClient implements KisAccessTokenProvider {
 
     private static final String KIS_ACCESS_TOKEN_KEY = "kis:access-token";
 
     private final KisProperties kisProperties;
     private final StringRedisTemplate redisTemplate;
 
+    @Override
     public String getAccessToken() {
         String cachedToken = redisTemplate.opsForValue().get(KIS_ACCESS_TOKEN_KEY);
 

@@ -25,7 +25,7 @@ public class KisDailyPriceClient {
             DateTimeFormatter.BASIC_ISO_DATE;
 
     private final KisProperties kisProperties;
-    private final KisAuthClient kisAuthClient;
+    private final KisAccessTokenProvider accessTokenProvider;
     private final RestClient.Builder restClientBuilder;
 
     public List<KisDailyPrice> getDailyPrices(
@@ -35,7 +35,7 @@ public class KisDailyPriceClient {
 
         validateRequest(stockCode, startDate, endDate);
 
-        String accessToken = kisAuthClient.getAccessToken();
+        String accessToken = accessTokenProvider.getAccessToken();
 
         RestClient restClient = restClientBuilder
                 .baseUrl(kisProperties.getBaseUrl())
