@@ -49,4 +49,15 @@ public interface StockDailyPriceRepository
             @Param("stock") Stock stock,
             @Param("startDate") LocalDate startDate,
             @Param("endDate") LocalDate endDate);
+
+    @Query("""
+            select price.stock.id
+            from StockDailyPrice price
+            where price.tradeDate = :tradeDate
+              and price.stock.id in :stockIds
+            order by price.stock.id asc
+            """)
+    List<Long> findStockIdsWithPriceOnDate(
+            @Param("tradeDate") LocalDate tradeDate,
+            @Param("stockIds") List<Long> stockIds);
 }

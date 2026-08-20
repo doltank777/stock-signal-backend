@@ -38,20 +38,34 @@ public class DailyPriceFinalizationService {
                         "KOSPI/KOSDAQ 일봉 Finalization 대상 종목을 찾을 수 없습니다: "
                                 + normalizedStockCode));
 
+        return finalizeStock(stock, targetTradeDate);
+    }
+
+    DailyPriceFinalizationResult finalizeStock(
+            Stock stock,
+            LocalDate targetTradeDate
+    ) {
+        if (stock == null) {
+            throw new IllegalArgumentException("stock is required");
+        }
+        if (targetTradeDate == null) {
+            throw new IllegalArgumentException("targetTradeDate is required");
+        }
+        String stockCode = stock.getStockCode();
         KisDailyPrice targetPrice = kisDailyPriceClient.getDailyPrices(
-                        normalizedStockCode, targetTradeDate, targetTradeDate)
+                        stockCode, targetTradeDate, targetTradeDate)
                 .stream()
                 .filter(price -> targetTradeDate.equals(price.getTradeDate()))
                 .findFirst()
                 .orElse(null);
         if (targetPrice == null) {
-            return result(normalizedStockCode, targetTradeDate,
+            return result(stockCode, targetTradeDate,
                     DailyPriceFinalizationStatus.NO_DATA);
         }
 
         DailyPriceFinalizationStatus status =
                 stockDailyPriceWriter.finalizePrice(stock, targetPrice);
-        return result(normalizedStockCode, targetTradeDate, status);
+        return result(stockCode, targetTradeDate, status);
     }
 
     private DailyPriceFinalizationResult result(
