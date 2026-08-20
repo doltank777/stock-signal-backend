@@ -29,6 +29,11 @@ public interface StockDailyPriceRepository
             LocalDate tradeDate
     );
 
+    Optional<StockDailyPrice> findByStockAndTradeDate(
+            Stock stock,
+            LocalDate tradeDate
+    );
+
     long countByStockAndTradeDateLessThanEqual(Stock stock, LocalDate endDate);
 
     @Query("select max(price.tradeDate) from StockDailyPrice price where price.stock = :stock")

@@ -51,6 +51,38 @@ public class StockDailyPriceWriter {
                 .build();
     }
 
+    @Transactional
+    public DailyPriceFinalizationStatus finalizePrice(
+            Stock stock,
+            KisDailyPrice dailyPrice
+    ) {
+        return stockDailyPriceRepository.findByStockAndTradeDate(
+                        stock, dailyPrice.getTradeDate())
+                .map(existing -> updateFinalizedPrice(existing, dailyPrice))
+                .orElseGet(() -> insertFinalizedPrice(stock, dailyPrice));
+    }
+
+    private DailyPriceFinalizationStatus updateFinalizedPrice(
+            StockDailyPrice existing,
+            KisDailyPrice dailyPrice
+    ) {
+        boolean changed = existing.updateFinalizedValues(
+                dailyPrice.getOpenPrice(), dailyPrice.getHighPrice(),
+                dailyPrice.getLowPrice(), dailyPrice.getClosePrice(),
+                dailyPrice.getVolume());
+        return changed
+                ? DailyPriceFinalizationStatus.UPDATED
+                : DailyPriceFinalizationStatus.UNCHANGED;
+    }
+
+    private DailyPriceFinalizationStatus insertFinalizedPrice(
+            Stock stock,
+            KisDailyPrice dailyPrice
+    ) {
+        stockDailyPriceRepository.save(toEntity(stock, dailyPrice));
+        return DailyPriceFinalizationStatus.INSERTED;
+    }
+
     private StockDailyPrice toEntity(Stock stock, KisDailyPrice price) {
         return StockDailyPrice.builder()
                 .stock(stock)

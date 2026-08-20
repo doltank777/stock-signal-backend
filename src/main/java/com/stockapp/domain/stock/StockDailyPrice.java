@@ -5,6 +5,7 @@ import lombok.*;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Objects;
 
 @Entity
 @Table(
@@ -52,5 +53,27 @@ public class StockDailyPrice {
     @PrePersist
     public void prePersist() {
         this.collectedAt = LocalDateTime.now();
+    }
+
+    public boolean updateFinalizedValues(
+            Long openPrice,
+            Long highPrice,
+            Long lowPrice,
+            Long closePrice,
+            Long volume
+    ) {
+        if (Objects.equals(this.openPrice, openPrice)
+                && Objects.equals(this.highPrice, highPrice)
+                && Objects.equals(this.lowPrice, lowPrice)
+                && Objects.equals(this.closePrice, closePrice)
+                && Objects.equals(this.volume, volume)) {
+            return false;
+        }
+        this.openPrice = openPrice;
+        this.highPrice = highPrice;
+        this.lowPrice = lowPrice;
+        this.closePrice = closePrice;
+        this.volume = volume;
+        return true;
     }
 }

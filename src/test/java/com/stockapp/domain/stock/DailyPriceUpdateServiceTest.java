@@ -39,6 +39,7 @@ import static org.mockito.Mockito.when;
 class DailyPriceUpdateServiceTest {
 
     private static final LocalDate BASE_DATE = LocalDate.of(2026, 8, 14);
+    private static final LocalDate CURRENT_DATE = LocalDate.of(2026, 8, 15);
 
     @Mock StockRepository stockRepository;
     @Mock StockDailyPriceRepository dailyPriceRepository;
@@ -64,7 +65,7 @@ class DailyPriceUpdateServiceTest {
         service = new DailyPriceUpdateService(
                 stockRepository, dailyPriceRepository, writer, client,
                 properties, sleeper,
-                Clock.fixed(Instant.parse("2026-08-14T08:00:00Z"), ZoneOffset.UTC));
+                Clock.fixed(Instant.parse("2026-08-15T08:00:00Z"), ZoneOffset.UTC));
         kospi = stock(1L, "005930", MarketType.KOSPI);
         kosdaq = stock(2L, "035720", MarketType.KOSDAQ);
     }
@@ -178,6 +179,25 @@ class DailyPriceUpdateServiceTest {
         assertThat(result.getNoNewDataStockCount()).isEqualTo(1);
         assertThat(result.getFailedStockCount()).isZero();
         verify(writer, never()).write(any(), anyList());
+    }
+
+    @Test
+    void excludesKoreaTodayButKeepsNewPastDailyPrice() {
+        DailyPriceUpdateService todayService = new DailyPriceUpdateService(
+                stockRepository, dailyPriceRepository, writer, client,
+                properties, sleeper,
+                Clock.fixed(Instant.parse("2026-08-14T08:00:00Z"), ZoneOffset.UTC));
+        prepareOneStock(kospi, LocalDate.of(2026, 8, 12));
+        KisDailyPrice past = price("2026-08-13");
+        KisDailyPrice today = price("2026-08-14");
+        when(client.getDailyPrices("005930", LocalDate.of(2026, 8, 13), BASE_DATE))
+                .thenReturn(List.of(today, past));
+        when(writer.write(kospi, List.of(past))).thenReturn(save(1));
+
+        DailyPriceUpdateResult result = todayService.update(BASE_DATE);
+
+        verify(writer).write(kospi, List.of(past));
+        assertThat(result.getSavedDailyPriceCount()).isEqualTo(1);
     }
 
     @Test
@@ -410,7 +430,7 @@ class DailyPriceUpdateServiceTest {
 
         DailyPriceUpdateResult result = service.update();
 
-        assertThat(result.getBaseDate()).isEqualTo(BASE_DATE);
+        assertThat(result.getBaseDate()).isEqualTo(CURRENT_DATE);
     }
 
     private void prepareOneStock(Stock stock, LocalDate latestDate) {

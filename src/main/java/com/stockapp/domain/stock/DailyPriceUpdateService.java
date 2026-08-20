@@ -66,6 +66,7 @@ public class DailyPriceUpdateService {
             throw new IllegalArgumentException("일봉 업데이트 기준일은 필수입니다.");
         }
         validateConfiguration();
+        LocalDate today = LocalDate.now(clock.withZone(KOREA_ZONE));
 
         List<Stock> stocks = selectTargetStocks(stockCode);
         UpdateSummary summary = new UpdateSummary(baseDate, stocks.size(), Instant.now(clock));
@@ -78,7 +79,7 @@ public class DailyPriceUpdateService {
         for (int index = 0; index < stocks.size(); index++) {
             Stock stock = stocks.get(index);
             try {
-                updateStock(stock, baseDate, summary);
+                updateStock(stock, baseDate, today, summary);
             } catch (BatchInterruptedException e) {
                 log.warn("일봉 업데이트가 인터럽트되어 중단됩니다.");
                 throw e;
@@ -124,7 +125,12 @@ public class DailyPriceUpdateService {
         return List.of(stock);
     }
 
-    private void updateStock(Stock stock, LocalDate baseDate, UpdateSummary summary) {
+    private void updateStock(
+            Stock stock,
+            LocalDate baseDate,
+            LocalDate today,
+            UpdateSummary summary
+    ) {
         LocalDate latestTradeDate = stockDailyPriceRepository
                 .findLatestTradeDateByStock(stock)
                 .orElse(null);
@@ -154,7 +160,8 @@ public class DailyPriceUpdateService {
                         stock, requestStartDate, baseDate, summary)
                 .stream()
                 .filter(price -> !price.getTradeDate().isBefore(requestStartDate)
-                        && !price.getTradeDate().isAfter(baseDate))
+                        && !price.getTradeDate().isAfter(baseDate)
+                        && !price.getTradeDate().equals(today))
                 .sorted(Comparator.comparing(KisDailyPrice::getTradeDate))
                 .toList();
 
