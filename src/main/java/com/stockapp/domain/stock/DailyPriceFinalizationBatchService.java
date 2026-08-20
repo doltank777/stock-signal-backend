@@ -17,8 +17,9 @@ import org.springframework.web.client.RestClientResponseException;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Service
@@ -35,8 +36,20 @@ public class DailyPriceFinalizationBatchService {
     private final KisProperties kisProperties;
     private final DailyPriceLoadSleeper sleeper;
     private final Clock clock;
+    private final DailyPriceFinalizationRunGuard runGuard;
 
     public DailyPriceFinalizationExecutionResult finalizeAll(
+            LocalDate targetTradeDate
+    ) {
+        runGuard.acquire();
+        try {
+            return finalizeAllWithinGuard(targetTradeDate);
+        } finally {
+            runGuard.release();
+        }
+    }
+
+    DailyPriceFinalizationExecutionResult finalizeAllWithinGuard(
             LocalDate targetTradeDate
     ) {
         if (targetTradeDate == null) {
@@ -56,7 +69,7 @@ public class DailyPriceFinalizationBatchService {
                 DailyPriceFinalizationResult result = finalizeWithRetry(
                         stock, targetTradeDate, summary);
                 summary.add(result);
-            } catch (BatchInterruptedException exception) {
+            } catch (DailyPriceFinalizationInterruptedException exception) {
                 log.warn("일봉 Finalization batch가 인터럽트되어 중단됩니다.");
                 throw exception;
             } catch (RuntimeException exception) {
@@ -70,6 +83,26 @@ public class DailyPriceFinalizationBatchService {
                         findKisMessageCode(exception));
                 log.error("일봉 Finalization 종목 실패 - stockCode: {}, error: {}",
                         stock.getStockCode(), exception.getMessage());
+            }
+        }
+
+        List<Stock> secondPassTargets = stocks.stream()
+                .filter(stock -> summary.isFailed(stock.getStockCode()))
+                .toList();
+        for (Stock stock : secondPassTargets) {
+            try {
+                DailyPriceFinalizationResult result = finalizeWithRetry(
+                        stock, targetTradeDate, summary);
+                summary.add(result);
+            } catch (DailyPriceFinalizationInterruptedException exception) {
+                log.warn("일봉 Finalization second pass가 인터럽트되어 중단됩니다.");
+                throw exception;
+            } catch (RuntimeException exception) {
+                if (isAuthenticationFailure(exception)) {
+                    throw exception;
+                }
+                summary.addFailure(stock, failureReason(exception),
+                        findKisMessageCode(exception));
             }
         }
 
@@ -128,7 +161,7 @@ public class DailyPriceFinalizationBatchService {
             sleeper.sleep(milliseconds);
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
-            throw new BatchInterruptedException(exception);
+            throw new DailyPriceFinalizationInterruptedException(exception);
         }
     }
 
@@ -191,23 +224,14 @@ public class DailyPriceFinalizationBatchService {
         }
     }
 
-    private static class BatchInterruptedException extends RuntimeException {
-        BatchInterruptedException(Throwable cause) {
-            super(cause);
-        }
-    }
-
     private static class BatchSummary {
         private final LocalDate targetTradeDate;
         private final List<DailyPriceFinalizationTarget> targets;
         private final Instant startedAt;
-        private final List<DailyPriceLoadFailure> failures = new ArrayList<>();
-        private final List<String> noDataStockCodes = new ArrayList<>();
-        private int inserted;
-        private int updated;
-        private int unchanged;
-        private int noData;
-        private int failed;
+        private final Map<String, DailyPriceFinalizationResult> results =
+                new LinkedHashMap<>();
+        private final Map<String, DailyPriceLoadFailure> failures =
+                new LinkedHashMap<>();
         private int apiCalls;
         private boolean requestMade;
 
@@ -226,29 +250,47 @@ public class DailyPriceFinalizationBatchService {
         }
 
         void add(DailyPriceFinalizationResult result) {
-            switch (result.status()) {
-                case INSERTED -> inserted++;
-                case UPDATED -> updated++;
-                case UNCHANGED -> unchanged++;
-                case NO_DATA -> {
-                    noData++;
-                    noDataStockCodes.add(result.stockCode());
-                }
-            }
+            results.put(result.stockCode(), result);
+            failures.remove(result.stockCode());
         }
 
         void addFailure(Stock stock, String reason, String messageCode) {
-            failed++;
-            failures.add(new DailyPriceLoadFailure(
+            failures.put(stock.getStockCode(), new DailyPriceLoadFailure(
                     stock.getStockCode(), stock.getStockName(),
                     reason, messageCode));
         }
 
+        boolean isFailed(String stockCode) {
+            return failures.containsKey(stockCode);
+        }
+
         DailyPriceFinalizationBatchResult toResult(Instant finishedAt) {
+            int inserted = count(DailyPriceFinalizationStatus.INSERTED);
+            int updated = count(DailyPriceFinalizationStatus.UPDATED);
+            int unchanged = count(DailyPriceFinalizationStatus.UNCHANGED);
+            int noData = count(DailyPriceFinalizationStatus.NO_DATA);
+            List<String> noDataStockCodes = targets.stream()
+                    .map(DailyPriceFinalizationTarget::stockCode)
+                    .filter(code -> results.containsKey(code)
+                            && results.get(code).status()
+                            == DailyPriceFinalizationStatus.NO_DATA)
+                    .toList();
+            List<DailyPriceLoadFailure> orderedFailures = targets.stream()
+                    .map(DailyPriceFinalizationTarget::stockCode)
+                    .filter(failures::containsKey)
+                    .map(failures::get)
+                    .toList();
             return new DailyPriceFinalizationBatchResult(
                     targetTradeDate, targets.size(), inserted, updated,
-                    unchanged, noData, failed, apiCalls, true,
-                    startedAt, finishedAt, failures, noDataStockCodes, targets);
+                    unchanged, noData, orderedFailures.size(), apiCalls, true,
+                    startedAt, finishedAt, orderedFailures,
+                    noDataStockCodes, targets);
+        }
+
+        private int count(DailyPriceFinalizationStatus status) {
+            return (int) results.values().stream()
+                    .filter(result -> result.status() == status)
+                    .count();
         }
     }
 }

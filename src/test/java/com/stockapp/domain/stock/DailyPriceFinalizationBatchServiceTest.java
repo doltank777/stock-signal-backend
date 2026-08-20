@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -38,6 +39,7 @@ class DailyPriceFinalizationBatchServiceTest {
     @Mock DailyPriceCompletenessEvaluator completenessEvaluator;
     @Mock DailyPriceLoadSleeper sleeper;
     @Mock Clock clock;
+    private DailyPriceFinalizationRunGuard runGuard;
 
     private KisProperties properties;
     private DailyPriceFinalizationBatchService service;
@@ -50,9 +52,10 @@ class DailyPriceFinalizationBatchServiceTest {
         properties = new KisProperties();
         properties.getDailyPrice().getUpdate().setRequestDelayMs(0);
         properties.getDailyPrice().getUpdate().getRetry().setInitialBackoffMs(0);
+        runGuard = new DailyPriceFinalizationRunGuard();
         service = new DailyPriceFinalizationBatchService(
                 stockRepository, finalizationService, completenessEvaluator,
-                properties, sleeper, clock);
+                properties, sleeper, clock, runGuard);
         a = stock(1L, "000001", MarketType.KOSPI);
         b = stock(2L, "000002", MarketType.KOSDAQ);
         c = stock(3L, "000003", MarketType.KOSPI);
@@ -136,6 +139,31 @@ class DailyPriceFinalizationBatchServiceTest {
         assertThat(batch.failedStocks()).extracting(failure -> failure.stockCode())
                 .containsExactly("000002");
         verify(finalizationService).finalizeStock(c, TARGET_DATE);
+    }
+
+    @Test
+    void retriesOnlyFailedStocksOnceInSecondPassAndUsesFinalStatus() {
+        prepareStocks();
+        when(finalizationService.finalizeStock(a, TARGET_DATE))
+                .thenReturn(result(a, DailyPriceFinalizationStatus.INSERTED));
+        when(finalizationService.finalizeStock(b, TARGET_DATE))
+                .thenThrow(new IllegalArgumentException("transient"))
+                .thenReturn(result(b, DailyPriceFinalizationStatus.UPDATED));
+        when(finalizationService.finalizeStock(c, TARGET_DATE))
+                .thenReturn(result(c, DailyPriceFinalizationStatus.NO_DATA));
+        when(completenessEvaluator.evaluate(
+                org.mockito.ArgumentMatchers.any()))
+                .thenReturn(completeness(false));
+
+        DailyPriceFinalizationBatchResult batch =
+                service.finalizeAll(TARGET_DATE).batch();
+
+        assertThat(batch.failedStockCount()).isZero();
+        assertThat(batch.updatedStockCount()).isEqualTo(1);
+        assertThat(batch.noDataStockCount()).isEqualTo(1);
+        assertThat(batch.apiCallCount()).isEqualTo(4);
+        verify(finalizationService, times(2)).finalizeStock(b, TARGET_DATE);
+        verify(finalizationService, times(1)).finalizeStock(c, TARGET_DATE);
     }
 
     @Test
