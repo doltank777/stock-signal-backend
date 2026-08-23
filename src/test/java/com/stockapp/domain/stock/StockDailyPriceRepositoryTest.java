@@ -193,9 +193,44 @@ class StockDailyPriceRepositoryTest {
                 .contains(LocalDate.of(2026, 8, 14));
     }
 
+    @Test
+    void bulkLookupReturnsOnlyRequestedStocksWithExactDateRows() {
+        LocalDate evaluationDate = LocalDate.of(2026, 8, 14);
+        Stock requestedWithExactRow = stock;
+        Stock requestedWithOldRow = stockRepository.save(Stock.builder()
+                .stockCode("035720")
+                .stockName("Kakao")
+                .marketType(MarketType.KOSDAQ)
+                .build());
+        Stock extraKonex = stockRepository.save(Stock.builder()
+                .stockCode("950000")
+                .stockName("Konex")
+                .marketType(MarketType.KONEX)
+                .build());
+        stockDailyPriceRepository.saveAll(List.of(
+                createDailyPrice(requestedWithExactRow, evaluationDate),
+                createDailyPrice(requestedWithOldRow,
+                        evaluationDate.minusDays(1)),
+                createDailyPrice(extraKonex, evaluationDate)));
+        stockDailyPriceRepository.flush();
+
+        List<Long> result = stockDailyPriceRepository
+                .findStockIdsWithPriceOnDate(
+                        evaluationDate,
+                        List.of(requestedWithExactRow.getId(),
+                                requestedWithOldRow.getId()));
+
+        assertThat(result).containsExactly(requestedWithExactRow.getId());
+    }
+
     private StockDailyPrice createDailyPrice(LocalDate tradeDate) {
+        return createDailyPrice(stock, tradeDate);
+    }
+
+    private StockDailyPrice createDailyPrice(
+            Stock targetStock, LocalDate tradeDate) {
         return StockDailyPrice.builder()
-                .stock(stock)
+                .stock(targetStock)
                 .tradeDate(tradeDate)
                 .openPrice(70_000L)
                 .highPrice(72_000L)
