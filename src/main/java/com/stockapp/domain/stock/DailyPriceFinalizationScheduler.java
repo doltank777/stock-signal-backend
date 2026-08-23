@@ -23,6 +23,7 @@ public class DailyPriceFinalizationScheduler {
 
     private final DailyPriceFinalizationRecoveryService recoveryService;
     private final DailyPriceFinalizationTargetDateResolver targetDateResolver;
+    private final KrxTradingCalendar tradingCalendar;
 
     @Scheduled(
             cron = "${kis.daily-price.finalization.scheduler.cron:-}",
@@ -31,6 +32,12 @@ public class DailyPriceFinalizationScheduler {
         LocalDate targetTradeDate =
                 targetDateResolver.resolveScheduledTargetDate();
         try {
+            if (!tradingCalendar.isTradingDay(targetTradeDate)) {
+                log.info("Daily Price Finalization scheduled trigger skipped - "
+                                + "targetTradeDate: {}, reason: not a KRX trading day",
+                        targetTradeDate);
+                return;
+            }
             DailyPriceFinalizationRecoveryResult result =
                     recoveryService.recover(targetTradeDate);
             log.info("Daily Price Finalization scheduled trigger completed - "

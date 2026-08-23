@@ -14,6 +14,8 @@ class DailyPriceFinalizationAutomationConditionTest {
                             () -> mock(DailyPriceFinalizationRecoveryService.class))
                     .withBean(DailyPriceFinalizationTargetDateResolver.class,
                             () -> mock(DailyPriceFinalizationTargetDateResolver.class))
+                    .withBean(KrxTradingCalendar.class,
+                            () -> mock(KrxTradingCalendar.class))
                     .withUserConfiguration(
                             DailyPriceFinalizationScheduler.class,
                             DailyPriceFinalizationStartupRecoveryRunner.class);
