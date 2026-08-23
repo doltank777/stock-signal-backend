@@ -62,9 +62,10 @@ class ScreeningPerformanceStructureTest {
                 searchConditionRepository,
                 requirementAnalyzer,
                 stockMetricContextFactory,
-                screeningExecutionService,
-                Clock.fixed(Instant.parse("2026-08-17T00:00:00Z"),
-                        ZoneOffset.UTC));
+                new ScreeningEvaluationEngine(
+                        screeningExecutionService,
+                        Clock.fixed(Instant.parse("2026-08-17T00:00:00Z"),
+                                ZoneOffset.UTC)));
     }
 
     @ParameterizedTest

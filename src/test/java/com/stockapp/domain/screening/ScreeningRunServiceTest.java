@@ -84,8 +84,9 @@ class ScreeningRunServiceTest {
                 searchConditionRepository,
                 requirementAnalyzer,
                 stockMetricContextFactory,
-                screeningExecutionService,
-                Clock.fixed(NOW, ZoneOffset.UTC));
+                new ScreeningEvaluationEngine(
+                        screeningExecutionService,
+                        Clock.fixed(NOW, ZoneOffset.UTC)));
     }
 
     @Test
