@@ -8,6 +8,9 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.time.Clock;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
@@ -21,7 +24,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @RequiredArgsConstructor
 public class DailyPriceUpdateScheduler {
 
+    private static final ZoneId KOREA_ZONE = ZoneId.of("Asia/Seoul");
+
     private final DailyPriceUpdateService dailyPriceUpdateService;
+    private final KrxTradingCalendar tradingCalendar;
+    private final Clock clock;
     private final AtomicBoolean running = new AtomicBoolean(false);
 
     @Scheduled(
@@ -36,6 +43,13 @@ public class DailyPriceUpdateScheduler {
 
         log.info("일봉 업데이트 Scheduler 시작");
         try {
+            LocalDate today = LocalDate.now(clock.withZone(KOREA_ZONE));
+            if (!tradingCalendar.isTradingDay(today)) {
+                log.info("Daily Price Update skipped - date: {}, reason: not a KRX trading day",
+                        today);
+                return;
+            }
+
             DailyPriceUpdateResult result = dailyPriceUpdateService.update();
             log.info("일봉 업데이트 Scheduler 완료 - updated: {}, upToDate: {}, "
                             + "noNewData: {}, noBaseHistory: {}, failed: {}, apiCalls: {}, savedRows: {}",

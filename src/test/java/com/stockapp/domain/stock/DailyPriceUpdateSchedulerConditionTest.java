@@ -3,6 +3,8 @@ package com.stockapp.domain.stock;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
+import java.time.Clock;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
@@ -11,6 +13,9 @@ class DailyPriceUpdateSchedulerConditionTest {
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
             .withBean(DailyPriceUpdateService.class,
                     () -> mock(DailyPriceUpdateService.class))
+            .withBean(KrxTradingCalendar.class,
+                    () -> mock(KrxTradingCalendar.class))
+            .withBean(Clock.class, Clock::systemUTC)
             .withUserConfiguration(DailyPriceUpdateScheduler.class);
 
     @Test
