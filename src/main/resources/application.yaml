@@ -3,6 +3,14 @@ spring:
     active: local
 
 kis:
+  trading-calendar:
+    base-url: ${KIS_TRADING_CALENDAR_BASE_URL:https://openapi.koreainvestment.com:9443}
+    app-key: ${KIS_TRADING_CALENDAR_APP_KEY:}
+    app-secret: ${KIS_TRADING_CALENDAR_APP_SECRET:}
+    request-interval-ms: 1000
+    max-pages: 50
+    rate-limit-retry-max-attempts: 2
+    rate-limit-retry-delay-ms: 61000
   daily-price:
     finalization:
       scheduler:

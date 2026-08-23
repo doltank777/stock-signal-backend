@@ -8,6 +8,7 @@ import com.stockapp.domain.stock.DailyPriceUpdateRunner;
 import com.stockapp.domain.stock.DailyPriceUpdateScheduler;
 import com.stockapp.domain.stock.StockPriceScheduler;
 import com.stockapp.external.kis.KisDailyPriceClient;
+import com.stockapp.external.kis.KisOAuthTokenClient;
 import com.stockapp.external.kis.KisWebSocketStartupRunner;
 import com.stockprobe.kisdailyprice.KisDailyPriceProbeApplication;
 import jakarta.persistence.EntityManagerFactory;
@@ -40,6 +41,7 @@ class KisDailyPriceProbeProfileIsolationTest {
             assertThat(context).hasSingleBean(KisDailyPriceProbeRunner.class);
             assertThat(context).hasSingleBean(KisDailyPriceClient.class);
             assertThat(context).hasSingleBean(DirectKisAccessTokenProvider.class);
+            assertThat(context).hasSingleBean(KisOAuthTokenClient.class);
 
             assertThat(context).doesNotHaveBean(DataSource.class);
             assertThat(context).doesNotHaveBean(EntityManagerFactory.class);

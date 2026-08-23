@@ -20,6 +20,20 @@ kis:
   app-secret: YOUR_APP_SECRET
   base-url: https://openapivts.koreainvestment.com:29443
   web-socket-url: ws://ops.koreainvestment.com:31000
+  # CTCA0903R is not supported by the paper REST environment (EGW02006).
+  # Use a separately issued real-trading App Key and App Secret.
+  trading-calendar:
+    base-url: ${KIS_TRADING_CALENDAR_BASE_URL:https://openapi.koreainvestment.com:9443}
+    app-key: ${KIS_TRADING_CALENDAR_APP_KEY:}
+    app-secret: ${KIS_TRADING_CALENDAR_APP_SECRET:}
+    # CTCA0903R showed rate limiting at the generic 50 ms smart_sleep;
+    # use a conservative one-request-per-second page interval.
+    request-interval-ms: 1000
+    # Safety guard only; normal completion follows the KIS continuation header.
+    max-pages: 50
+    # Official KIS rate-limit handling waits 61 seconds; retry only once.
+    rate-limit-retry-max-attempts: 2
+    rate-limit-retry-delay-ms: 61000
   daily-price:
     target-trading-days: 250
     request-window-months: 6

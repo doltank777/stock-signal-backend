@@ -1,12 +1,16 @@
 package com.stockapp.external.kis.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonAnySetter;
+import com.fasterxml.jackson.annotation.JsonSetter;
 import lombok.Getter;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.List;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 @Getter
 public class KisTradingCalendarResponse {
@@ -29,10 +33,36 @@ public class KisTradingCalendarResponse {
         return output.stream().map(Output::toTradingDay).toList();
     }
 
+    public Set<String> outputFieldNames() {
+        Set<String> names = new LinkedHashSet<>();
+        if (output != null) {
+            output.forEach(row -> names.addAll(row.fieldNames));
+        }
+        return Set.copyOf(names);
+    }
+
     @Getter
     public static class Output {
-        @JsonProperty("bass_dt") private String baseDate;
-        @JsonProperty("opnd_yn") private String openYn;
+        private String baseDate;
+        private String openYn;
+        private final Set<String> fieldNames = new LinkedHashSet<>();
+
+        @JsonSetter("bass_dt")
+        void setBaseDate(String baseDate) {
+            this.baseDate = baseDate;
+            fieldNames.add("bass_dt");
+        }
+
+        @JsonSetter("opnd_yn")
+        void setOpenYn(String openYn) {
+            this.openYn = openYn;
+            fieldNames.add("opnd_yn");
+        }
+
+        @JsonAnySetter
+        void captureAdditionalField(String name, Object ignoredValue) {
+            fieldNames.add(name);
+        }
 
         KisTradingDay toTradingDay() {
             if (baseDate == null || baseDate.isBlank()) {

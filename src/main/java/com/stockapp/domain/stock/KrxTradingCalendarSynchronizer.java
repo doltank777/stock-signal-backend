@@ -37,6 +37,28 @@ public class KrxTradingCalendarSynchronizer {
                 startedAt, Instant.now(clock));
     }
 
+    public KrxTradingCalendarSyncResult synchronize(
+            LocalDate startDate,
+            LocalDate endDate
+    ) {
+        if (startDate == null) {
+            throw new IllegalArgumentException("startDate is required");
+        }
+        if (endDate == null) {
+            throw new IllegalArgumentException("endDate is required");
+        }
+        Instant startedAt = Instant.now(clock);
+        List<KisTradingDay> received = client.getTradingDays(startDate, endDate);
+        List<KisTradingDay> validated = validate(received);
+        Instant synchronizedAt = Instant.now(clock);
+        KrxTradingCalendarWriter.WriteResult writeResult =
+                writer.write(validated, synchronizedAt);
+        return new KrxTradingCalendarSyncResult(
+                startDate, received.size(), writeResult.inserted(),
+                writeResult.updated(), writeResult.unchanged(),
+                startedAt, Instant.now(clock));
+    }
+
     private List<KisTradingDay> validate(List<KisTradingDay> received) {
         if (received == null || received.isEmpty()) {
             throw new IllegalArgumentException(

@@ -65,4 +65,30 @@ class KrxTradingCalendarSynchronizerTest {
                 .isInstanceOf(IllegalStateException.class);
         verify(writer, never()).write(any(), any());
     }
+
+    @Test
+    void rangeSynchronizesOnlyAfterCompleteClientResult() {
+        LocalDate endDate = BASE_DATE.plusDays(1);
+        when(client.getTradingDays(BASE_DATE, endDate)).thenReturn(List.of(
+                new KisTradingDay(BASE_DATE, true),
+                new KisTradingDay(endDate, false)));
+        when(writer.write(any(), any())).thenReturn(
+                new KrxTradingCalendarWriter.WriteResult(2, 0, 0));
+
+        var result = synchronizer.synchronize(BASE_DATE, endDate);
+
+        assertThat(result.receivedCount()).isEqualTo(2);
+        verify(writer).write(any(), any());
+    }
+
+    @Test
+    void incompleteRangeNeverWrites() {
+        LocalDate endDate = BASE_DATE.plusDays(1);
+        when(client.getTradingDays(BASE_DATE, endDate)).thenThrow(
+                new IllegalStateException("range incomplete"));
+
+        assertThatThrownBy(() -> synchronizer.synchronize(BASE_DATE, endDate))
+                .isInstanceOf(IllegalStateException.class);
+        verify(writer, never()).write(any(), any());
+    }
 }

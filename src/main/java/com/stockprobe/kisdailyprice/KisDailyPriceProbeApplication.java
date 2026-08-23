@@ -2,6 +2,7 @@ package com.stockprobe.kisdailyprice;
 
 import com.stockapp.external.kis.KisAccessTokenProvider;
 import com.stockapp.external.kis.KisDailyPriceClient;
+import com.stockapp.external.kis.KisOAuthTokenClient;
 import com.stockapp.external.kis.dailypriceprobe.DirectKisAccessTokenProvider;
 import com.stockapp.external.kis.dailypriceprobe.KisDailyPriceProbeProperties;
 import com.stockapp.external.kis.dailypriceprobe.KisDailyPriceProbeRunner;
@@ -21,8 +22,16 @@ import java.time.Clock;
 public class KisDailyPriceProbeApplication {
 
     @Bean
-    KisAccessTokenProvider kisAccessTokenProvider(KisProperties properties) {
-        return new DirectKisAccessTokenProvider(properties);
+    KisAccessTokenProvider kisAccessTokenProvider(
+            KisProperties properties,
+            KisOAuthTokenClient oAuthTokenClient
+    ) {
+        return new DirectKisAccessTokenProvider(properties, oAuthTokenClient);
+    }
+
+    @Bean
+    KisOAuthTokenClient kisOAuthTokenClient() {
+        return new KisOAuthTokenClient(RestClient.builder());
     }
 
     @Bean

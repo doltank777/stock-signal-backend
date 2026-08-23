@@ -9,33 +9,30 @@ import java.time.Duration;
 
 @Component
 @RequiredArgsConstructor
-public class KisAuthClient implements KisAccessTokenProvider {
+public class RedisKisTradingCalendarAccessTokenProvider
+        implements KisTradingCalendarAccessTokenProvider {
 
-    private static final String KIS_ACCESS_TOKEN_KEY = "kis:access-token";
+    private static final String CACHE_KEY =
+            "kis:access-token:trading-calendar-real";
 
-    private final KisProperties kisProperties;
+    private final KisProperties properties;
     private final StringRedisTemplate redisTemplate;
     private final KisOAuthTokenClient oAuthTokenClient;
 
     @Override
     public String getAccessToken() {
-        String cachedToken = redisTemplate.opsForValue().get(KIS_ACCESS_TOKEN_KEY);
-
+        KisProperties.TradingCalendar calendar =
+                properties.getTradingCalendar();
+        calendar.validateConfigured();
+        String cachedToken = redisTemplate.opsForValue().get(CACHE_KEY);
         if (cachedToken != null && !cachedToken.isBlank()) {
             return cachedToken;
         }
-
         String accessToken = oAuthTokenClient.requestAccessToken(
-                kisProperties.getBaseUrl(),
-                kisProperties.getAppKey(),
-                kisProperties.getAppSecret());
-
+                calendar.getBaseUrl(), calendar.getAppKey(),
+                calendar.getAppSecret());
         redisTemplate.opsForValue().set(
-                KIS_ACCESS_TOKEN_KEY,
-                accessToken,
-                Duration.ofHours(23)
-        );
-
+                CACHE_KEY, accessToken, Duration.ofHours(23));
         return accessToken;
     }
 }

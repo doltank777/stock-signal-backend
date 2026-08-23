@@ -14,11 +14,47 @@ public class KisProperties {
     private String webSocketUrl;
     private String appKey;
     private String appSecret;
+    private TradingCalendar tradingCalendar = new TradingCalendar();
     private DailyPrice dailyPrice = new DailyPrice();
 
     public enum Environment {
         REAL,
         VIRTUAL
+    }
+
+    @Getter
+    @Setter
+    public static class TradingCalendar {
+        private String baseUrl;
+        private String appKey;
+        private String appSecret;
+        private long requestIntervalMs = 1000;
+        private int maxPages = 50;
+        private int rateLimitRetryMaxAttempts = 2;
+        private long rateLimitRetryDelayMs = 61000;
+
+        public void validateConfigured() {
+            if (baseUrl == null || baseUrl.isBlank()
+                    || appKey == null || appKey.isBlank()
+                    || appSecret == null || appSecret.isBlank()) {
+                throw new IllegalStateException(
+                        "KIS Trading Calendar real environment is not configured; "
+                                + "set base-url, app-key, and app-secret");
+            }
+            if (requestIntervalMs < 0 || rateLimitRetryDelayMs < 0) {
+                throw new IllegalStateException(
+                        "KIS Trading Calendar pacing delays must be >= 0");
+            }
+            if (maxPages < 1) {
+                throw new IllegalStateException(
+                        "KIS Trading Calendar max pages must be >= 1");
+            }
+            if (rateLimitRetryMaxAttempts < 1
+                    || rateLimitRetryMaxAttempts > 2) {
+                throw new IllegalStateException(
+                        "KIS Trading Calendar rate-limit retry max attempts must be between 1 and 2");
+            }
+        }
     }
 
     @Getter
