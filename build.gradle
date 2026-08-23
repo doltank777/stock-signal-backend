@@ -224,6 +224,34 @@ tasks.register('kisTradingCalendarProbe', org.springframework.boot.gradle.tasks.
 	]
 }
 
+tasks.register('tradingCalendarSync', org.springframework.boot.gradle.tasks.run.BootRun) {
+	group = 'application'
+	description = 'Runs an explicit KRX trading calendar range synchronization.'
+	mainClass = 'com.stockbatch.tradingcalendar.TradingCalendarSyncApplication'
+	def devToolsJar = configurations.developmentOnly.incoming.artifactView {
+		componentFilter { componentId ->
+			componentId instanceof org.gradle.api.artifacts.component.ModuleComponentIdentifier &&
+					componentId.group == 'org.springframework.boot' &&
+					componentId.module == 'spring-boot-devtools'
+		}
+	}.files
+	classpath = sourceSets.main.runtimeClasspath - devToolsJar
+	args '--spring.profiles.active=local,trading-calendar-sync'
+	if (project.hasProperty('tradingCalendarSyncStartDate')) {
+		args "--trading-calendar-sync.start-date=${project.property('tradingCalendarSyncStartDate')}"
+	}
+	if (project.hasProperty('tradingCalendarSyncEndDate')) {
+		args "--trading-calendar-sync.end-date=${project.property('tradingCalendarSyncEndDate')}"
+	}
+	systemProperty 'file.encoding', 'UTF-8'
+	jvmArgs = [
+			'-Dfile.encoding=UTF-8',
+			'-Dconsole.encoding=UTF-8',
+			'-Dsun.stdout.encoding=UTF-8',
+			'-Dsun.stderr.encoding=UTF-8'
+	]
+}
+
 tasks.withType(JavaCompile).configureEach {
 	options.encoding = 'UTF-8'
 }

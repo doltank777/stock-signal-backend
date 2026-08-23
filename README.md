@@ -637,6 +637,22 @@ PATCH /api/admin/search-conditions/{id}/enabled
 
 ---
 
+# ✅ KRX Trading Calendar 수동 초기 동기화
+
+자동 Scheduler가 아닌 명시적 manual initial synchronization입니다. MySQL과
+Redis를 실행하고 `krx_trading_days` schema 및 Calendar 실전 credential을 준비한
+뒤 범위를 직접 지정해 실행합니다.
+
+```powershell
+.\gradlew.bat tradingCalendarSync --no-daemon `
+  "-PtradingCalendarSyncStartDate=2026-01-01" `
+  "-PtradingCalendarSyncEndDate=2027-12-31"
+```
+
+요청 범위의 모든 calendar date가 검증된 경우에만 DB에 upsert합니다.
+
+---
+
 # ✅ MySQL Schema 검증
 
 `schema-validate` profile은 Entity와 실제 local MySQL schema의 일치 여부만 검증합니다.
