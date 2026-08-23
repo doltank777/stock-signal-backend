@@ -6,6 +6,7 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.time.Clock;
 import java.time.DayOfWeek;
 import java.time.LocalTime;
 import java.time.ZoneId;
@@ -20,6 +21,8 @@ public class StockPriceScheduler {
 
     private final StockRepository stockRepository;
     private final StockPriceService stockPriceService;
+    private final KrxTradingCalendar tradingCalendar;
+    private final Clock clock;
 
     private static final ZoneId KOREA_ZONE = ZoneId.of("Asia/Seoul");
     private static final LocalTime MARKET_OPEN_TIME = LocalTime.of(9, 0);
@@ -28,8 +31,21 @@ public class StockPriceScheduler {
     // 1시간마다 실행
     @Scheduled(cron = "0 0 9-16 * * MON-FRI", zone = "Asia/Seoul")
     public void collectStockPrices() {
-        if (!isMarketOpen()) {
+        ZonedDateTime now = ZonedDateTime.now(clock.withZone(KOREA_ZONE));
+        if (!isMarketOpen(now)) {
             log.info("주식시장 운영 시간이 아니므로 현재가 수집을 건너뜁니다.");
+            return;
+        }
+
+        try {
+            if (!tradingCalendar.isTradingDay(now.toLocalDate())) {
+                log.info("Stock price collection skipped - date: {}, reason: not a KRX trading day",
+                        now.toLocalDate());
+                return;
+            }
+        } catch (TradingCalendarUnavailableException e) {
+            log.error("Stock price collection failed closed because KRX trading calendar "
+                    + "is unavailable - date: {}", now.toLocalDate(), e);
             return;
         }
 
@@ -50,9 +66,7 @@ public class StockPriceScheduler {
         log.info("주식 현재가 보조 수집 완료");
     }
 
-    private boolean isMarketOpen() {
-        ZonedDateTime now = ZonedDateTime.now(KOREA_ZONE);
-
+    private boolean isMarketOpen(ZonedDateTime now) {
         DayOfWeek dayOfWeek = now.getDayOfWeek();
         LocalTime currentTime = now.toLocalTime();
 
