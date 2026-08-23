@@ -42,6 +42,15 @@ public class DailyPriceFinalizationRecoveryService {
         return executionStore.findLatest();
     }
 
+    public Optional<DailyPriceFinalizationExecutionSnapshot> findExecution(
+            LocalDate targetTradeDate
+    ) {
+        if (targetTradeDate == null) {
+            throw new IllegalArgumentException("targetTradeDate is required");
+        }
+        return executionStore.find(targetTradeDate);
+    }
+
     private DailyPriceFinalizationRecoveryResult execute(
             LocalDate targetTradeDate, boolean skipAlreadyReady) {
         if (targetTradeDate == null) {

@@ -86,6 +86,18 @@ class DailyPriceFinalizationRecoveryServiceTest {
                 org.mockito.ArgumentMatchers.any());
     }
 
+    @Test
+    void findsExecutionByExactTargetDate() {
+        var expected = snapshot(1L,
+                DailyPriceFinalizationExecutionStatus.COMPLETED, true);
+        when(store.find(DATE)).thenReturn(Optional.of(expected));
+
+        assertThat(service(new DailyPriceFinalizationRunGuard())
+                .findExecution(DATE)).contains(expected);
+
+        verify(store).find(DATE);
+    }
+
     private DailyPriceFinalizationRecoveryService service(
             DailyPriceFinalizationRunGuard guard) {
         return new DailyPriceFinalizationRecoveryService(
