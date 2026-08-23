@@ -13,13 +13,30 @@ public record StockMetricContext(
         Stock stock,
         LocalDate baseDate,
         Optional<LatestStockSnapshot> snapshot,
+        Optional<OperationalCurrentMetrics> operationalCurrent,
         List<DailyPriceData> dailyPrices
 ) {
+
+    public StockMetricContext(
+            Stock stock,
+            LocalDate baseDate,
+            Optional<LatestStockSnapshot> snapshot,
+            List<DailyPriceData> dailyPrices
+    ) {
+        this(stock, baseDate, snapshot, Optional.empty(), dailyPrices);
+    }
 
     public StockMetricContext {
         Objects.requireNonNull(stock, "stock은 필수입니다.");
         Objects.requireNonNull(baseDate, "baseDate는 필수입니다.");
         Objects.requireNonNull(snapshot, "snapshot Optional은 필수입니다.");
+        Objects.requireNonNull(
+                operationalCurrent,
+                "operationalCurrent Optional is required");
+        if (snapshot.isPresent() && operationalCurrent.isPresent()) {
+            throw new IllegalArgumentException(
+                    "snapshot and operationalCurrent are mutually exclusive");
+        }
         dailyPrices = List.copyOf(
                 Objects.requireNonNull(dailyPrices, "dailyPrices는 필수입니다."));
         validateSnapshot(stock, baseDate, snapshot);

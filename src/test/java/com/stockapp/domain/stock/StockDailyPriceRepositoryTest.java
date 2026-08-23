@@ -73,6 +73,32 @@ class StockDailyPriceRepositoryTest {
     }
 
     @Test
+    void returnsEvaluationDateAndLimitedPreviousRows() {
+        List.of(
+                LocalDate.of(2026, 8, 10),
+                LocalDate.of(2026, 8, 11),
+                LocalDate.of(2026, 8, 12),
+                LocalDate.of(2026, 8, 13),
+                LocalDate.of(2026, 8, 14)
+        ).forEach(tradeDate -> stockDailyPriceRepository.save(
+                createDailyPrice(tradeDate)));
+        stockDailyPriceRepository.flush();
+
+        List<StockDailyPrice> prices = stockDailyPriceRepository
+                .findByStockAndTradeDateLessThanEqualOrderByTradeDateDesc(
+                        stock,
+                        LocalDate.of(2026, 8, 14),
+                        PageRequest.of(0, 3));
+
+        assertThat(prices)
+                .extracting(StockDailyPrice::getTradeDate)
+                .containsExactly(
+                        LocalDate.of(2026, 8, 14),
+                        LocalDate.of(2026, 8, 13),
+                        LocalDate.of(2026, 8, 12));
+    }
+
+    @Test
     void returnsAllAvailablePricesWhenFewerThanRequestedExist() {
         List.of(
                 LocalDate.of(2026, 8, 12),
