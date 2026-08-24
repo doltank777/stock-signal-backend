@@ -8,6 +8,8 @@ import com.stockapp.domain.screening.dto.ScreeningRunResult;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.Objects;
+
 @Service
 @RequiredArgsConstructor
 public class OperationalRealtimeScreeningLifecycleService {
@@ -18,11 +20,15 @@ public class OperationalRealtimeScreeningLifecycleService {
     private final RealtimeTargetReconciliationService reconciliationService;
 
     public OperationalRealtimeScreeningLifecycleResult run() {
+        return apply(prepare());
+    }
+
+    public OperationalRealtimeScreeningPreparation prepare() {
         OperationalScreeningRunResult screeningRun =
                 screeningRunService.run();
         if (screeningRun.status()
                 != OperationalScreeningRunStatus.COMPLETED) {
-            return OperationalRealtimeScreeningLifecycleResult.skipped(
+            return OperationalRealtimeScreeningPreparation.skipped(
                     screeningRun);
         }
 
@@ -32,9 +38,23 @@ public class OperationalRealtimeScreeningLifecycleService {
         screeningSnapshotRegistry.replace(screeningResult);
         OperationalRealtimeTargetSelection selection =
                 targetSelector.select(screeningResult);
+        return OperationalRealtimeScreeningPreparation.completed(
+                screeningRun, selection);
+    }
+
+    public OperationalRealtimeScreeningLifecycleResult apply(
+            OperationalRealtimeScreeningPreparation preparation
+    ) {
+        Objects.requireNonNull(preparation, "preparation is required");
+        if (preparation.selection().isEmpty()) {
+            return OperationalRealtimeScreeningLifecycleResult.skipped(
+                    preparation.screeningRun());
+        }
+        OperationalRealtimeTargetSelection selection = preparation.selection()
+                .orElseThrow();
         RealtimeTargetReconciliationResult reconciliation =
                 reconciliationService.reconcile(selection);
         return OperationalRealtimeScreeningLifecycleResult.completed(
-                screeningRun, selection, reconciliation);
+                preparation.screeningRun(), selection, reconciliation);
     }
 }
