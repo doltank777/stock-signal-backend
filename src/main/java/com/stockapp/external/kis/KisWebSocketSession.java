@@ -13,6 +13,7 @@ public final class KisWebSocketSession {
     private final List<String> requestedStockCodes;
     private final KisWebSocketSubscriptionTracker subscriptionTracker;
     private final String approvalKey;
+    private final Object commandMonitor = new Object();
 
     KisWebSocketSession(WebSocketSession session, List<String> requestedStockCodes) {
         this(session, requestedStockCodes,
@@ -74,13 +75,26 @@ public final class KisWebSocketSession {
                 approvalKey, "approvalKey is not available");
     }
 
+    Object commandMonitor() {
+        return commandMonitor;
+    }
+
     public boolean isOpen() {
         return session.isOpen();
     }
 
     public void close() throws IOException {
-        if (session.isOpen()) {
-            session.close();
+        synchronized (commandMonitor) {
+            String currentSessionId = session.getId();
+            try {
+                if (session.isOpen()) {
+                    session.close();
+                }
+            } finally {
+                if (currentSessionId != null) {
+                    subscriptionTracker.clearSession(currentSessionId);
+                }
+            }
         }
     }
 

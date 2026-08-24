@@ -130,11 +130,16 @@ public class KisWebSocketClient {
                 subscriptionTracker.registerPending(
                         session.getId(), TR_ID_REALTIME_PRICE,
                         stockCode, operation);
-        session.sendMessage(new TextMessage(createSubscriptionMessage(
-                approvalKey, stockCode, operation)));
-        KisWebSocketSubscriptionResult result =
-                subscriptionTracker.awaitResult(
-                        request, SUBSCRIBE_ACK_TIMEOUT);
+        KisWebSocketSubscriptionResult result;
+        try {
+            session.sendMessage(new TextMessage(createSubscriptionMessage(
+                    approvalKey, stockCode, operation)));
+            result = subscriptionTracker.awaitResult(
+                    request, SUBSCRIBE_ACK_TIMEOUT);
+        } catch (IOException | InterruptedException exception) {
+            subscriptionTracker.discard(request);
+            throw exception;
+        }
         if (result.status() != KisSubscriptionStatus.CONFIRMED) {
             throw rejected(result);
         }

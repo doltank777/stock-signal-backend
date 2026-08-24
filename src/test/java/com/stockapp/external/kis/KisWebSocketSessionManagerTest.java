@@ -89,6 +89,17 @@ class KisWebSocketSessionManagerTest {
     }
 
     @Test
+    void exposesOnlyAnOpenCurrentSession() {
+        KisWebSocketSession session = mock(KisWebSocketSession.class);
+        when(client.connectAndSubscribe(anyList())).thenReturn(session);
+        when(session.isOpen()).thenReturn(true, false);
+        manager.connectAll(List.of("005930"));
+
+        assertThat(manager.currentOpenSession()).contains(session);
+        assertThat(manager.currentOpenSession()).isEmpty();
+    }
+
+    @Test
     void closeClearsStateAndPropagatesFailure() throws Exception {
         KisWebSocketSession session = mock(KisWebSocketSession.class);
         IOException failure = new IOException("close failed");

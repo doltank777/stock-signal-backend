@@ -160,16 +160,15 @@ class KisWebSocketHandlerTest {
                 "session-1", "H0STCNT0", "000660",
                 KisWebSocketOperation.SUBSCRIBE);
         handler.afterConnectionClosed(session, CloseStatus.NORMAL);
-        assertThat(subscriptionTracker.snapshot("session-1").stream()
-                .filter(result -> result.stockCode().equals("000660"))
-                .findFirst()).hasValueSatisfying(result ->
-                assertThat(result.messageCode()).isEqualTo("CONNECTION_CLOSED"));
+        assertThat(subscriptionTracker.snapshot("session-1")).isEmpty();
+        assertThat(subscriptionTracker.activeStockCodes("session-1")).isEmpty();
 
         subscriptionTracker.registerPending(
                 "session-2", "H0STCNT0", "035420",
                 KisWebSocketOperation.SUBSCRIBE);
         WebSocketSession second = mock(WebSocketSession.class);
         when(second.getId()).thenReturn("session-2");
+        when(second.isOpen()).thenReturn(true);
         handler.handleTransportError(second, new IllegalStateException("broken"));
         assertThat(subscriptionTracker.snapshot("session-2").getFirst().messageCode())
                 .isEqualTo("TRANSPORT_ERROR");

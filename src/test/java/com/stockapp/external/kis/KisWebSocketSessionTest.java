@@ -86,6 +86,27 @@ class KisWebSocketSessionTest {
     }
 
     @Test
+    void closeClearsTrackedPhysicalState() throws IOException {
+        WebSocketSession webSocketSession = mock(WebSocketSession.class);
+        when(webSocketSession.getId()).thenReturn("session-1");
+        when(webSocketSession.isOpen()).thenReturn(true);
+        KisWebSocketSubscriptionTracker tracker =
+                new KisWebSocketSubscriptionTracker();
+        tracker.registerPending(
+                "session-1", "H0STCNT0", "005930",
+                KisWebSocketOperation.SUBSCRIBE);
+        tracker.handle("session-1", new KisWebSocketControlResponse(
+                "H0STCNT0", "005930", "0", null, "SUCCESS"));
+        KisWebSocketSession session = new KisWebSocketSession(
+                webSocketSession, List.of("005930"), tracker);
+
+        session.close();
+
+        assertThat(tracker.activeStockCodes("session-1")).isEmpty();
+        assertThat(tracker.snapshot("session-1")).isEmpty();
+    }
+
+    @Test
     void propagatesCloseFailure() throws IOException {
         WebSocketSession webSocketSession = mock(WebSocketSession.class);
         when(webSocketSession.isOpen()).thenReturn(true);

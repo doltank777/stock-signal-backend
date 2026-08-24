@@ -9,6 +9,56 @@ import static org.assertj.core.api.Assertions.assertThat;
 class KisWebSocketSubscriptionTrackerTest {
 
     @Test
+    void clearSessionRemovesActiveAndCompletedStateIdempotently()
+            throws Exception {
+        KisWebSocketSubscriptionTracker tracker =
+                new KisWebSocketSubscriptionTracker();
+        complete(tracker, KisWebSocketOperation.SUBSCRIBE);
+
+        tracker.clearSession("session-1");
+        tracker.clearSession("session-1");
+
+        assertThat(tracker.activeStockCodes("session-1")).isEmpty();
+        assertThat(tracker.snapshot("session-1")).isEmpty();
+    }
+
+    @Test
+    void clearSessionCompletesPendingWaiterBeforeRemovingDiagnostics()
+            throws Exception {
+        KisWebSocketSubscriptionTracker tracker =
+                new KisWebSocketSubscriptionTracker();
+        KisWebSocketSubscriptionRequest request = tracker.registerPending(
+                "session-1", "H0STCNT0", "005930",
+                KisWebSocketOperation.SUBSCRIBE);
+
+        tracker.clearSession("session-1");
+        KisWebSocketSubscriptionResult result = tracker.awaitResult(
+                request, Duration.ofMillis(10));
+
+        assertThat(result.status()).isEqualTo(KisSubscriptionStatus.FAILED);
+        assertThat(result.messageCode()).isEqualTo("CONNECTION_CLOSED");
+        assertThat(tracker.snapshot("session-1")).isEmpty();
+        assertThat(tracker.activeStockCodes("session-1")).isEmpty();
+    }
+
+    @Test
+    void clearedSessionStateDoesNotLeakIntoNewSession() throws Exception {
+        KisWebSocketSubscriptionTracker tracker =
+                new KisWebSocketSubscriptionTracker();
+        complete(tracker, KisWebSocketOperation.SUBSCRIBE);
+        tracker.clearSession("session-1");
+
+        tracker.registerPending(
+                "session-2", "H0STCNT0", "000660",
+                KisWebSocketOperation.SUBSCRIBE);
+        tracker.handle("session-2", response("000660", "0"));
+
+        assertThat(tracker.activeStockCodes("session-1")).isEmpty();
+        assertThat(tracker.activeStockCodes("session-2"))
+                .containsExactly("000660");
+    }
+
+    @Test
     void correlatesBySessionTrAndStockAndTracksImmutableResults() throws Exception {
         KisWebSocketSubscriptionTracker tracker = new KisWebSocketSubscriptionTracker();
         tracker.registerPending("session-1", "H0STCNT0", "005930",

@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
 @Slf4j
@@ -41,6 +42,12 @@ public class KisWebSocketSessionManager {
     public List<KisWebSocketSession> sessions() {
         KisWebSocketSession current = session.get();
         return current == null ? List.of() : List.of(current);
+    }
+
+    public Optional<KisWebSocketSession> currentOpenSession() {
+        KisWebSocketSession current = session.get();
+        return current != null && current.isOpen()
+                ? Optional.of(current) : Optional.empty();
     }
 
     public int sessionCount() {

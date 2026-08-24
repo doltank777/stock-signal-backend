@@ -111,15 +111,19 @@ public class KisWebSocketHandler extends TextWebSocketHandler
 
     @Override
     public void handleTransportError(WebSocketSession session, Throwable exception) {
-        subscriptionTracker.failPendingForSession(
-                session.getId(), "TRANSPORT_ERROR", exception.getMessage());
+        if (!session.isOpen()) {
+            subscriptionTracker.clearSession(session.getId());
+        } else {
+            subscriptionTracker.failPendingForSession(
+                    session.getId(), "TRANSPORT_ERROR",
+                    exception.getMessage());
+        }
         log.error("KIS WebSocket 오류 발생 - sessionId: {}", session.getId(), exception);
     }
 
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
-        subscriptionTracker.failPendingForSession(
-                session.getId(), "CONNECTION_CLOSED", status.toString());
+        subscriptionTracker.clearSession(session.getId());
         log.warn("KIS WebSocket 연결 종료 - sessionId: {}, status: {}", session.getId(), status);
     }
 

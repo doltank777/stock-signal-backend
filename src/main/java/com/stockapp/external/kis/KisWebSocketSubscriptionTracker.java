@@ -16,6 +16,8 @@ import java.util.concurrent.atomic.AtomicLong;
 public class KisWebSocketSubscriptionTracker {
 
     private final ConcurrentHashMap<Long, Entry> entries = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Long, Entry> closingEntries =
+            new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, LinkedHashSet<String>> activeStockCodes =
             new ConcurrentHashMap<>();
     private final AtomicLong sequence = new AtomicLong();
@@ -86,8 +88,20 @@ public class KisWebSocketSubscriptionTracker {
             KisWebSocketSubscriptionRequest request,
             Duration timeout
     ) throws InterruptedException {
-        return awaitResult(request.sessionId(), request.trId(), request.stockCode(),
-                request.operation(), timeout);
+        Objects.requireNonNull(request, "request is required");
+        Entry entry = entries.get(request.sequence());
+        if (entry == null) {
+            entry = closingEntries.get(request.sequence());
+        }
+        if (entry == null) {
+            throw new IllegalStateException(
+                    "subscription request is not registered");
+        }
+        try {
+            return awaitEntry(entry, timeout);
+        } finally {
+            closingEntries.remove(request.sequence(), entry);
+        }
     }
 
     public void failPendingForSession(String sessionId, String messageCode, String message) {
@@ -95,6 +109,29 @@ public class KisWebSocketSubscriptionTracker {
                 .filter(entry -> entry.request.sessionId().equals(sessionId))
                 .forEach(entry -> entry.complete(failed(
                         entry.request, messageCode, message)));
+    }
+
+    public void clearSession(String sessionId) {
+        Objects.requireNonNull(sessionId, "sessionId is required");
+        entries.forEach((sequence, entry) -> {
+            if (!entry.request.sessionId().equals(sessionId)) {
+                return;
+            }
+            boolean wasPending = !entry.result.isDone();
+            if (wasPending) {
+                entry.complete(failed(
+                        entry.request, "CONNECTION_CLOSED", "session closed"));
+                closingEntries.put(sequence, entry);
+            }
+            entries.remove(sequence, entry);
+        });
+        activeStockCodes.remove(sessionId);
+    }
+
+    public void discard(KisWebSocketSubscriptionRequest request) {
+        Objects.requireNonNull(request, "request is required");
+        entries.remove(request.sequence());
+        closingEntries.remove(request.sequence());
     }
 
     public List<KisWebSocketSubscriptionResult> snapshot(String sessionId) {
@@ -167,6 +204,21 @@ public class KisWebSocketSubscriptionTracker {
         return new KisWebSocketSubscriptionResult(
                 request.sessionId(), request.trId(), request.stockCode(), request.operation(),
                 KisSubscriptionStatus.FAILED, code, message);
+    }
+
+    private KisWebSocketSubscriptionResult awaitEntry(
+            Entry entry,
+            Duration timeout
+    ) throws InterruptedException {
+        try {
+            return entry.result.get(timeout.toMillis(), TimeUnit.MILLISECONDS);
+        } catch (TimeoutException exception) {
+            entry.complete(failed(entry.request, null, "ACK_TIMEOUT"));
+            return entry.result.join();
+        } catch (java.util.concurrent.ExecutionException exception) {
+            throw new IllegalStateException(
+                    "subscription result completion failed", exception);
+        }
     }
 
     private static final class Entry {
