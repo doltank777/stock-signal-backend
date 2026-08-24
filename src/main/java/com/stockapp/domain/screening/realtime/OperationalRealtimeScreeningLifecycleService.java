@@ -17,6 +17,7 @@ public class OperationalRealtimeScreeningLifecycleService {
     private final OperationalScreeningRunService screeningRunService;
     private final LatestScreeningSnapshotRegistry screeningSnapshotRegistry;
     private final OperationalRealtimeTargetSelector targetSelector;
+    private final LatestOperationalRealtimeSelectionRegistry selectionRegistry;
     private final RealtimeTargetReconciliationService reconciliationService;
 
     public OperationalRealtimeScreeningLifecycleResult run() {
@@ -38,6 +39,7 @@ public class OperationalRealtimeScreeningLifecycleService {
         screeningSnapshotRegistry.replace(screeningResult);
         OperationalRealtimeTargetSelection selection =
                 targetSelector.select(screeningResult);
+        selectionRegistry.replace(selection);
         return OperationalRealtimeScreeningPreparation.completed(
                 screeningRun, selection);
     }

@@ -95,9 +95,10 @@ public class OperationalMorningRunCoordinator {
         if (reconciliation.status()
                 == RealtimeTargetReconciliationStatus.PARTIAL_FAILURE) {
             setState(OperationalMorningRunStatus.PENDING_RECONCILIATION,
-                    result.selection().orElseThrow(), null);
+                    result.selection().orElseThrow(), null, reconciliation);
         } else {
-            setState(OperationalMorningRunStatus.COMPLETED, null, null);
+            setState(OperationalMorningRunStatus.COMPLETED, null, null,
+                    reconciliation);
         }
     }
 
@@ -105,6 +106,33 @@ public class OperationalMorningRunCoordinator {
         LocalDate today = sessionPolicy.today();
         resetFor(today);
         return state.snapshot();
+    }
+
+    public OperationalMorningManualRetryResult retryPendingReconciliationNow() {
+        ZonedDateTime now = sessionPolicy.now();
+        LocalDate today = now.toLocalDate();
+        resetFor(today);
+        if (!sessionPolicy.isStartupRecoveryWindow()) {
+            return OperationalMorningManualRetryResult.outsideWindow();
+        }
+        if (!running.compareAndSet(false, true)) {
+            return OperationalMorningManualRetryResult.alreadyRunning();
+        }
+        try {
+            OperationalRealtimeTargetSelection selection = pendingSelection()
+                    .orElse(null);
+            if (selection == null) {
+                return OperationalMorningManualRetryResult.noPending();
+            }
+            incrementAttempt(now);
+            RealtimeTargetReconciliationResult reconciliation =
+                    reconciliationService.reconcile(selection);
+            handleReconciliation(today, reconciliation, selection);
+            return OperationalMorningManualRetryResult.executed(
+                    reconciliation);
+        } finally {
+            running.set(false);
+        }
     }
 
     private void handleLifecycle(
@@ -116,7 +144,7 @@ public class OperationalMorningRunCoordinator {
         if (screeningStatus == OperationalScreeningRunStatus.NOT_TRADING_DAY) {
             RealtimeTargetReconciliationResult clear = clearStaleTargets();
             setState(OperationalMorningRunStatus.SKIPPED_NON_TRADING_DAY,
-                    null, clear);
+                    null, clear, clear);
             return;
         }
         if (screeningStatus != OperationalScreeningRunStatus.COMPLETED) {
@@ -135,7 +163,7 @@ public class OperationalMorningRunCoordinator {
         if (result.status()
                 == RealtimeTargetReconciliationStatus.PARTIAL_FAILURE) {
             setState(OperationalMorningRunStatus.PENDING_RECONCILIATION,
-                    selection, null);
+                    selection, null, result);
             log.warn("operational morning reconciliation pending - date: {}, "
                             + "attempt: {}, operation: {}, stockCode: {}, "
                             + "beforePhysical: {}, afterPhysical: {}",
@@ -144,7 +172,7 @@ public class OperationalMorningRunCoordinator {
                     result.afterPhysicalCount());
             return;
         }
-        setState(OperationalMorningRunStatus.COMPLETED, null, null);
+        setState(OperationalMorningRunStatus.COMPLETED, null, null, result);
         log.info("operational morning completed - date: {}, selectedCount: {}, "
                         + "excludedCount: {}, reconciliationStatus: {}, attempt: {}",
                 today, selection.selectedCount(), selection.excludedCount(),
@@ -153,7 +181,8 @@ public class OperationalMorningRunCoordinator {
 
     private void failClosed(LocalDate today, String reason) {
         RealtimeTargetReconciliationResult clear = clearStaleTargets();
-        setState(OperationalMorningRunStatus.FAILED_DEADLINE, null, clear);
+        setState(OperationalMorningRunStatus.FAILED_DEADLINE, null, clear,
+                clear);
         log.warn("operational morning failed closed - date: {}, reason: {}, "
                         + "attempts: {}, clearStatus: {}, remainingPhysical: {}",
                 today, reason, attemptCount(), clear.status(),
@@ -168,14 +197,15 @@ public class OperationalMorningRunCoordinator {
     private synchronized void resetFor(LocalDate today) {
         if (state == null || !state.date.equals(today)) {
             state = new MorningState(today,
-                    OperationalMorningRunStatus.IDLE, 0, null, null, null);
+                    OperationalMorningRunStatus.IDLE, 0, null, null, null,
+                    null);
         }
     }
 
     private synchronized void incrementAttempt(ZonedDateTime attemptedAt) {
         state = new MorningState(state.date, state.status,
                 state.attemptCount + 1, state.pendingSelection,
-                state.staleClearResult, attemptedAt);
+                state.staleClearResult, state.lastReconciliation, attemptedAt);
     }
 
     private synchronized ZonedDateTime previousAttempt() {
@@ -200,20 +230,23 @@ public class OperationalMorningRunCoordinator {
     }
 
     private synchronized void markPendingScreening() {
-        setState(OperationalMorningRunStatus.PENDING_SCREENING, null, null);
+        setState(OperationalMorningRunStatus.PENDING_SCREENING, null, null,
+                null);
     }
 
     private synchronized void markFatal() {
-        setState(OperationalMorningRunStatus.FAILED_FATAL, null, null);
+        setState(OperationalMorningRunStatus.FAILED_FATAL, null, null, null);
     }
 
     private synchronized void setState(
             OperationalMorningRunStatus status,
             OperationalRealtimeTargetSelection pendingSelection,
-            RealtimeTargetReconciliationResult clearResult
+            RealtimeTargetReconciliationResult clearResult,
+            RealtimeTargetReconciliationResult lastReconciliation
     ) {
         state = new MorningState(state.date, status, state.attemptCount,
-                pendingSelection, clearResult, state.previousAttempt);
+                pendingSelection, clearResult, lastReconciliation,
+                state.previousAttempt);
     }
 
     private record MorningState(
@@ -222,12 +255,15 @@ public class OperationalMorningRunCoordinator {
             int attemptCount,
             OperationalRealtimeTargetSelection pendingSelection,
             RealtimeTargetReconciliationResult staleClearResult,
+            RealtimeTargetReconciliationResult lastReconciliation,
             ZonedDateTime previousAttempt
     ) {
         private OperationalMorningRunSnapshot snapshot() {
             return new OperationalMorningRunSnapshot(
                     date, status, attemptCount,
+                    Optional.ofNullable(previousAttempt),
                     Optional.ofNullable(pendingSelection),
+                    Optional.ofNullable(lastReconciliation),
                     Optional.ofNullable(staleClearResult));
         }
     }

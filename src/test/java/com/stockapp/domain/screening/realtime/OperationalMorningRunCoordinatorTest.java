@@ -19,6 +19,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class OperationalMorningRunCoordinatorTest {
@@ -98,6 +99,43 @@ class OperationalMorningRunCoordinatorTest {
         assertThat(coordinator.snapshot().status())
                 .isEqualTo(OperationalMorningRunStatus.COMPLETED);
         assertThat(coordinator.snapshot().pendingSelection()).isEmpty();
+    }
+
+    @Test
+    void manualRetryReusesPendingSelectionAndCompletesMorningState() {
+        at(2026, 8, 24, 8, 30);
+        OperationalRealtimeTargetSelection selection = selection();
+        RealtimeTargetReconciliationResult partial = result(
+                RealtimeTargetReconciliationStatus.PARTIAL_FAILURE);
+        OperationalRealtimeScreeningLifecycleResult lifecycleResult =
+                completed(selection, partial);
+        when(lifecycle.run()).thenReturn(lifecycleResult);
+        coordinator.executeTick();
+        when(policy.isStartupRecoveryWindow()).thenReturn(true);
+        RealtimeTargetReconciliationResult completed = result(
+                RealtimeTargetReconciliationStatus.COMPLETED);
+        when(reconciliation.reconcile(selection)).thenReturn(completed);
+
+        OperationalMorningManualRetryResult result =
+                coordinator.retryPendingReconciliationNow();
+
+        assertThat(result.status()).isEqualTo(
+                OperationalMorningManualRetryStatus.EXECUTED);
+        assertThat(coordinator.snapshot().status()).isEqualTo(
+                OperationalMorningRunStatus.COMPLETED);
+        verify(lifecycle).run();
+        verify(reconciliation).reconcile(selection);
+    }
+
+    @Test
+    void manualRetryWithoutPendingSelectionIsExplicitNoOp() {
+        at(2026, 8, 24, 10, 0);
+        when(policy.isStartupRecoveryWindow()).thenReturn(true);
+
+        assertThat(coordinator.retryPendingReconciliationNow().status())
+                .isEqualTo(OperationalMorningManualRetryStatus
+                        .NO_PENDING_RECONCILIATION);
+        verifyNoInteractions(lifecycle, reconciliation);
     }
 
     @Test

@@ -33,6 +33,7 @@ class OperationalRealtimeScreeningLifecycleServiceTest {
     @Mock OperationalScreeningRunService screeningRunService;
     @Mock LatestScreeningSnapshotRegistry screeningSnapshotRegistry;
     @Mock OperationalRealtimeTargetSelector targetSelector;
+    @Mock LatestOperationalRealtimeSelectionRegistry selectionRegistry;
     @Mock RealtimeTargetReconciliationService reconciliationService;
     @Mock ScreeningRunResult screeningResult;
 
@@ -52,7 +53,7 @@ class OperationalRealtimeScreeningLifecycleServiceTest {
         assertThat(result.selection()).isEmpty();
         assertThat(result.reconciliation()).isEmpty();
         verifyNoInteractions(screeningSnapshotRegistry, targetSelector,
-                reconciliationService);
+                selectionRegistry, reconciliationService);
     }
 
     @Test
@@ -72,9 +73,10 @@ class OperationalRealtimeScreeningLifecycleServiceTest {
         assertThat(result.selection()).containsSame(selection);
         assertThat(result.reconciliation()).containsSame(reconciliation);
         InOrder order = inOrder(screeningSnapshotRegistry, targetSelector,
-                reconciliationService);
+                selectionRegistry, reconciliationService);
         order.verify(screeningSnapshotRegistry).replace(screeningResult);
         order.verify(targetSelector).select(screeningResult);
+        order.verify(selectionRegistry).replace(selection);
         order.verify(reconciliationService).reconcile(selection);
     }
 
@@ -179,6 +181,7 @@ class OperationalRealtimeScreeningLifecycleServiceTest {
 
         assertThatThrownBy(() -> service().run()).isSameAs(failure);
         verify(screeningSnapshotRegistry).replace(screeningResult);
+        verify(selectionRegistry).replace(selection);
     }
 
     private OperationalRealtimeScreeningLifecycleResult runCompletedWith(
@@ -198,7 +201,7 @@ class OperationalRealtimeScreeningLifecycleServiceTest {
     private OperationalRealtimeScreeningLifecycleService service() {
         return new OperationalRealtimeScreeningLifecycleService(
                 screeningRunService, screeningSnapshotRegistry,
-                targetSelector, reconciliationService);
+                targetSelector, selectionRegistry, reconciliationService);
     }
 
     private OperationalScreeningRunResult completedRun() {
