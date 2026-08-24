@@ -88,3 +88,15 @@ screening-run:
 
 stock:
   import-key: "your-import-key"
+operational-screening:
+  realtime:
+    # KST morning preparation and KRX regular monitoring boundaries.
+    morning-start: "08:30"
+    morning-deadline: "08:55"
+    retry-interval: "5m"
+    market-open: "09:00"
+    market-close: "15:30"
+    morning:
+      # Keep disabled until the real KIS startup/morning flow is verified.
+      enabled: false
+      cron: "0 30,35,40,45,50,55 8 * * MON-FRI"

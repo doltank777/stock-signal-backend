@@ -19,3 +19,14 @@ kis:
         zone: "Asia/Seoul"
       startup-recovery:
         enabled: false
+
+operational-screening:
+  realtime:
+    morning-start: "08:30"
+    morning-deadline: "08:55"
+    retry-interval: "5m"
+    market-open: "09:00"
+    market-close: "15:30"
+    morning:
+      enabled: false
+      cron: "0 30,35,40,45,50,55 8 * * MON-FRI"

@@ -1,5 +1,7 @@
 package com.stockapp.domain.stock;
 
+import com.stockapp.domain.screening.realtime.KrxRegularMarketSessionPolicy;
+import com.stockapp.domain.screening.realtime.OperationalRealtimeAutomationProperties;
 import org.junit.jupiter.api.Test;
 import org.springframework.scheduling.annotation.Scheduled;
 
@@ -102,13 +104,16 @@ class StockPriceSchedulerTest {
         StockRepository repository = mock(StockRepository.class);
         StockPriceService service = mock(StockPriceService.class);
         KrxTradingCalendar calendar = mock(KrxTradingCalendar.class);
+        when(calendar.isTradingDay(LocalDate.of(2026, 8, 23)))
+                .thenReturn(false);
         StockPriceScheduler scheduler = schedulerAt(
                 LocalDateTime.of(2026, 8, 23, 10, 0),
                 repository, service, calendar);
 
         scheduler.collectStockPrices();
 
-        verifyNoInteractions(calendar, repository, service);
+        verify(calendar).isTradingDay(LocalDate.of(2026, 8, 23));
+        verifyNoInteractions(repository, service);
     }
 
     @Test
@@ -156,6 +161,9 @@ class StockPriceSchedulerTest {
             KrxTradingCalendar calendar) {
         Clock clock = Clock.fixed(
                 koreaDateTime.atZone(KOREA_ZONE).toInstant(), KOREA_ZONE);
-        return new StockPriceScheduler(repository, service, calendar, clock);
+        var properties = new OperationalRealtimeAutomationProperties();
+        properties.validate();
+        return new StockPriceScheduler(repository, service, calendar,
+                new KrxRegularMarketSessionPolicy(properties, clock));
     }
 }

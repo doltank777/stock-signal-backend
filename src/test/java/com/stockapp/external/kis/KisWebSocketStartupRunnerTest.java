@@ -3,6 +3,8 @@ package com.stockapp.external.kis;
 import com.stockapp.domain.screening.OperationalScreeningRunResult;
 import com.stockapp.domain.screening.OperationalScreeningRunStatus;
 import com.stockapp.domain.screening.realtime.DesiredRealtimeTarget;
+import com.stockapp.domain.screening.realtime.KrxRegularMarketSessionPolicy;
+import com.stockapp.domain.screening.realtime.OperationalMorningRunCoordinator;
 import com.stockapp.domain.screening.realtime.OperationalRealtimeScreeningLifecycleResult;
 import com.stockapp.domain.screening.realtime.OperationalRealtimeScreeningLifecycleService;
 import com.stockapp.domain.screening.realtime.OperationalRealtimeScreeningPreparation;
@@ -131,11 +133,30 @@ class KisWebSocketStartupRunnerTest {
         verifyNoInteractions(sessionManager);
     }
 
+    @Test
+    void outsideRecoveryWindowSkipsBeforeOperationalPreparation() {
+        var lifecycleService = mock(
+                OperationalRealtimeScreeningLifecycleService.class);
+        var sessionManager = mock(KisWebSocketSessionManager.class);
+        var policy = mock(KrxRegularMarketSessionPolicy.class);
+        var coordinator = mock(OperationalMorningRunCoordinator.class);
+        when(policy.isStartupRecoveryWindow()).thenReturn(false);
+
+        new KisWebSocketStartupRunner(lifecycleService, sessionManager,
+                policy, coordinator).run(mock(ApplicationArguments.class));
+
+        verifyNoInteractions(lifecycleService, sessionManager, coordinator);
+    }
+
     private KisWebSocketStartupRunner runner(
             OperationalRealtimeScreeningLifecycleService lifecycleService,
             KisWebSocketSessionManager sessionManager
     ) {
-        return new KisWebSocketStartupRunner(lifecycleService, sessionManager);
+        KrxRegularMarketSessionPolicy policy =
+                mock(KrxRegularMarketSessionPolicy.class);
+        when(policy.isStartupRecoveryWindow()).thenReturn(true);
+        return new KisWebSocketStartupRunner(lifecycleService, sessionManager,
+                policy, mock(OperationalMorningRunCoordinator.class));
     }
 
     private OperationalRealtimeScreeningPreparation completedPreparation(

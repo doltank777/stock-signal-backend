@@ -12,6 +12,11 @@ public record OperationalRealtimeTargetSelection(
         List<DesiredRealtimeTarget> excludedTargets
 ) {
 
+    public static OperationalRealtimeTargetSelection empty() {
+        return new OperationalRealtimeTargetSelection(
+                RealtimeWatchPolicy.CAPACITY, 0, List.of(), List.of());
+    }
+
     public OperationalRealtimeTargetSelection {
         if (capacity < 1) {
             throw new IllegalArgumentException("capacity must be positive");

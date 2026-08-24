@@ -3,6 +3,8 @@ package com.stockapp.external.kis;
 import com.stockapp.domain.screening.realtime.OperationalRealtimeScreeningLifecycleResult;
 import com.stockapp.domain.screening.realtime.OperationalRealtimeScreeningLifecycleService;
 import com.stockapp.domain.screening.realtime.OperationalRealtimeTargetSelection;
+import com.stockapp.domain.screening.realtime.OperationalMorningRunCoordinator;
+import com.stockapp.domain.screening.realtime.KrxRegularMarketSessionPolicy;
 import com.stockapp.domain.screening.realtime.RealtimeTargetReconciliationStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,9 +26,16 @@ public class KisWebSocketStartupRunner implements ApplicationRunner {
 
     private final OperationalRealtimeScreeningLifecycleService lifecycleService;
     private final KisWebSocketSessionManager sessionManager;
+    private final KrxRegularMarketSessionPolicy sessionPolicy;
+    private final OperationalMorningRunCoordinator morningCoordinator;
 
     @Override
     public void run(ApplicationArguments args) {
+        if (!sessionPolicy.isStartupRecoveryWindow()) {
+            log.info("realtime startup recovery skipped - reason: outside "
+                    + "recovery/monitoring window");
+            return;
+        }
         var preparation = lifecycleService.prepare();
         if (preparation.selection().isEmpty()) {
             log.info("realtime startup recovery skipped - screeningStatus: {}",
@@ -44,6 +53,7 @@ public class KisWebSocketStartupRunner implements ApplicationRunner {
         }
         OperationalRealtimeScreeningLifecycleResult result =
                 lifecycleService.apply(preparation);
+        morningCoordinator.recordStartupResult(result);
         var reconciliation = result.reconciliation().orElseThrow();
         if (reconciliation.status()
                 == RealtimeTargetReconciliationStatus.PARTIAL_FAILURE) {
