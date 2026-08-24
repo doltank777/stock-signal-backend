@@ -6,6 +6,7 @@ import com.stockapp.domain.screening.admin.dto.AdminDashboardStockResponse;
 import com.stockapp.domain.screening.admin.dto.AdminRealtimeWatchStatusResponse;
 import com.stockapp.domain.screening.admin.dto.AdminScreeningConditionResultResponse;
 import com.stockapp.domain.screening.admin.dto.AdminScreeningResultsResponse;
+import com.stockapp.domain.screening.realtime.RealtimeWatchPolicy;
 import com.stockapp.domain.screening.realtime.RealtimeWatchTarget;
 import com.stockapp.domain.screening.realtime.RealtimeWatchTargetRegistry;
 import com.stockapp.domain.stock.Stock;
@@ -24,7 +25,8 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class AdminScreeningDashboardService {
 
-    public static final int REALTIME_WATCH_CAPACITY = 40;
+    public static final int REALTIME_WATCH_CAPACITY =
+            RealtimeWatchPolicy.CAPACITY;
 
     private static final Comparator<ConditionGroup> CONDITION_ORDER =
             Comparator.comparingInt(ConditionGroup::priority).reversed()
