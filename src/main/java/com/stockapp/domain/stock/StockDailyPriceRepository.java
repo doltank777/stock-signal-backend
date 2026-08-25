@@ -51,6 +51,7 @@ public interface StockDailyPriceRepository
             from StockDailyPrice price
             where price.stock = :stock
               and price.tradeDate between :startDate and :endDate
+            order by price.tradeDate asc
             """)
     List<LocalDate> findTradeDates(
             @Param("stock") Stock stock,
