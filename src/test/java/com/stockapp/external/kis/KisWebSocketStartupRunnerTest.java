@@ -66,6 +66,22 @@ class KisWebSocketStartupRunnerTest {
     }
 
     @Test
+    void bootstrapNotReadyStartsNoWebSocketSession() {
+        var lifecycleService = mock(
+                OperationalRealtimeScreeningLifecycleService.class);
+        var sessionManager = mock(KisWebSocketSessionManager.class);
+        var preparation = skippedPreparation(
+                OperationalScreeningRunStatus.HISTORY_BOOTSTRAP_NOT_READY);
+        when(lifecycleService.prepare()).thenReturn(preparation);
+
+        runner(lifecycleService, sessionManager)
+                .run(mock(ApplicationArguments.class));
+
+        verifyNoInteractions(sessionManager);
+        verify(lifecycleService, never()).apply(preparation);
+    }
+
+    @Test
     void emptyDesiredAppliesWithoutOpeningEmptySession() {
         var lifecycleService = mock(
                 OperationalRealtimeScreeningLifecycleService.class);

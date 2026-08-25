@@ -24,6 +24,12 @@ public class OperationalDailyHistoryRequirementAnalyzer {
     public OperationalDailyHistoryRequirement analyze() {
         List<SearchCondition> activeConditions = searchConditionRepository
                 .findAllByEnabledTrueAndDeletedAtIsNullOrderByPriorityDesc();
+        return analyze(activeConditions);
+    }
+
+    public OperationalDailyHistoryRequirement analyze(
+            List<SearchCondition> activeConditions
+    ) {
         OperationalScreeningDataRequirements screening =
                 screeningAnalyzer.analyze(activeConditions);
 

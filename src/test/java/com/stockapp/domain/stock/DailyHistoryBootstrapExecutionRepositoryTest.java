@@ -41,9 +41,11 @@ class DailyHistoryBootstrapExecutionRepositoryTest {
     @Test
     void findsLatestReadyExecutionCoveringCurrentRequirement() {
         saveCompleted(20, true, Instant.parse("2026-08-24T01:00:00Z"));
-        DailyHistoryBootstrapExecution matching = saveCompleted(
+        saveCompleted(
                 120, true, Instant.parse("2026-08-24T02:00:00Z"));
-        saveCompleted(200, false, Instant.parse("2026-08-24T03:00:00Z"));
+        DailyHistoryBootstrapExecution matching = saveCompleted(
+                150, true, Instant.parse("2026-08-24T02:30:00Z"));
+        saveFailed(200, Instant.parse("2026-08-24T03:00:00Z"));
         saveCompleted(120, true, Instant.parse("2026-08-23T02:00:00Z"),
                 DATE.minusDays(1));
 
@@ -54,13 +56,23 @@ class DailyHistoryBootstrapExecutionRepositoryTest {
                 .isEqualTo(matching.getId());
         assertThat(repository
                 .findFirstByEvaluationDateAndReadyTrueAndRequiredPreviousTradingDayCountGreaterThanEqualOrderByFinishedAtDescIdDesc(
-                        DATE, 121))
+                        DATE, 151))
                 .isEmpty();
     }
 
     private DailyHistoryBootstrapExecution saveCompleted(
             int requirement, boolean ready, Instant finishedAt) {
         return saveCompleted(requirement, ready, finishedAt, DATE);
+    }
+
+    private DailyHistoryBootstrapExecution saveFailed(
+            int requirement, Instant finishedAt
+    ) {
+        DailyHistoryBootstrapExecution execution =
+                DailyHistoryBootstrapExecution.create(
+                        DATE, requirement, finishedAt.minusSeconds(60));
+        execution.fail("IllegalStateException: failed", finishedAt);
+        return repository.saveAndFlush(execution);
     }
 
     private DailyHistoryBootstrapExecution saveCompleted(

@@ -40,7 +40,7 @@ class OperationalRealtimeScreeningLifecycleServiceTest {
     @ParameterizedTest
     @EnumSource(value = OperationalScreeningRunStatus.class,
             names = {"NOT_TRADING_DAY", "FINALIZATION_NOT_READY",
-                    "DATA_INCOMPLETE"})
+                    "HISTORY_BOOTSTRAP_NOT_READY", "DATA_INCOMPLETE"})
     void nonCompletedScreeningSkipsEveryRealtimeSideEffect(
             OperationalScreeningRunStatus status
     ) {

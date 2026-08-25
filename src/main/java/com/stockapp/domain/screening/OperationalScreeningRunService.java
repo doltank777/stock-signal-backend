@@ -2,6 +2,7 @@ package com.stockapp.domain.screening;
 
 import com.stockapp.domain.screening.metric.OperationalScreeningDataRequirementAnalyzer;
 import com.stockapp.domain.screening.metric.OperationalScreeningDataRequirements;
+import com.stockapp.domain.screening.metric.OperationalDailyHistoryRequirementAnalyzer;
 import com.stockapp.domain.screening.metric.OperationalStockMetricContextFactory;
 import com.stockapp.domain.stock.MarketType;
 import com.stockapp.domain.stock.Stock;
@@ -21,6 +22,10 @@ public class OperationalScreeningRunService {
 
     private final OperationalScreeningEvaluationDateResolver readinessResolver;
     private final OperationalScreeningCompletenessService completenessService;
+    private final OperationalDailyHistoryRequirementAnalyzer
+            dailyHistoryRequirementAnalyzer;
+    private final DailyHistoryBootstrapReadinessService
+            bootstrapReadinessService;
     private final SearchConditionRepository searchConditionRepository;
     private final StockRepository stockRepository;
     private final OperationalScreeningDataRequirementAnalyzer requirementAnalyzer;
@@ -44,6 +49,19 @@ public class OperationalScreeningRunService {
                     readiness.today(), evaluationDate);
         }
 
+        List<SearchCondition> conditions = searchConditionRepository
+                .findAllByEnabledTrueAndDeletedAtIsNullOrderByPriorityDesc();
+        int requiredPreviousTradingDayCount = dailyHistoryRequirementAnalyzer
+                .analyze(conditions)
+                .requiredPreviousTradingDayCount();
+        DailyHistoryBootstrapReadinessResult bootstrapReadiness =
+                bootstrapReadinessService.check(
+                        evaluationDate, requiredPreviousTradingDayCount);
+        if (!bootstrapReadiness.ready()) {
+            return OperationalScreeningRunResult.historyBootstrapNotReady(
+                    readiness.today(), evaluationDate);
+        }
+
         OperationalScreeningCompletenessResult completeness =
                 completenessService.check(evaluationDate);
         if (completeness.status()
@@ -52,8 +70,6 @@ public class OperationalScreeningRunService {
                     readiness.today(), evaluationDate, completeness);
         }
 
-        List<SearchCondition> conditions = searchConditionRepository
-                .findAllByEnabledTrueAndDeletedAtIsNullOrderByPriorityDesc();
         List<Stock> stocks = stockRepository
                 .findByMarketTypeInOrderByIdAsc(TARGET_MARKETS);
         if (stocks.isEmpty()) {

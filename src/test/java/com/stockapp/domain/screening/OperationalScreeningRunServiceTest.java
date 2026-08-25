@@ -5,6 +5,8 @@ import com.stockapp.domain.screening.metric.OperationalScreeningDataRequirementA
 import com.stockapp.domain.screening.metric.OperationalScreeningDataRequirements;
 import com.stockapp.domain.screening.metric.OperationalScreeningDataMissingException;
 import com.stockapp.domain.screening.metric.OperationalStockMetricContextFactory;
+import com.stockapp.domain.screening.metric.OperationalDailyHistoryRequirement;
+import com.stockapp.domain.screening.metric.OperationalDailyHistoryRequirementAnalyzer;
 import com.stockapp.domain.screening.metric.StockMetricContext;
 import com.stockapp.domain.stock.MarketType;
 import com.stockapp.domain.stock.Stock;
@@ -43,6 +45,11 @@ class OperationalScreeningRunServiceTest {
 
     @Mock OperationalScreeningEvaluationDateResolver readinessResolver;
     @Mock OperationalScreeningCompletenessService completenessService;
+    @Mock OperationalDailyHistoryRequirementAnalyzer
+            dailyHistoryRequirementAnalyzer;
+    @Mock DailyHistoryBootstrapReadinessService bootstrapReadinessService;
+    @Mock OperationalDailyHistoryRequirement dailyHistoryRequirement;
+    @Mock DailyHistoryBootstrapReadinessResult bootstrapReadiness;
     @Mock SearchConditionRepository searchConditionRepository;
     @Mock StockRepository stockRepository;
     @Mock OperationalScreeningDataRequirementAnalyzer requirementAnalyzer;
@@ -95,6 +102,31 @@ class OperationalScreeningRunServiceTest {
     }
 
     @Test
+    void missingOrInsufficientBootstrapExecutionStopsBeforeCompleteness() {
+        when(readinessResolver.resolve()).thenReturn(
+                OperationalScreeningReadinessResult.ready(TODAY, DATE));
+        when(searchConditionRepository
+                .findAllByEnabledTrueAndDeletedAtIsNullOrderByPriorityDesc())
+                .thenReturn(List.of(firstCondition));
+        when(dailyHistoryRequirementAnalyzer.analyze(
+                List.of(firstCondition)))
+                .thenReturn(dailyHistoryRequirement);
+        when(dailyHistoryRequirement.requiredPreviousTradingDayCount())
+                .thenReturn(120);
+        when(bootstrapReadinessService.check(DATE, 120))
+                .thenReturn(bootstrapReadiness);
+        when(bootstrapReadiness.ready()).thenReturn(false);
+
+        var result = service().run();
+
+        assertThat(result.status()).isEqualTo(
+                OperationalScreeningRunStatus.HISTORY_BOOTSTRAP_NOT_READY);
+        assertThat(result.evaluationDate()).contains(DATE);
+        verifyNoInteractions(completenessService, stockRepository,
+                requirementAnalyzer, contextFactory, evaluationEngine);
+    }
+
+    @Test
     void incompleteDataPreservesMissingDetailsAndStopsScreening() {
         var completeness = incomplete();
         stubReady();
@@ -110,8 +142,8 @@ class OperationalScreeningRunServiceTest {
                 .extracting(OperationalScreeningMissingStock::stockCode)
                 .containsExactly("005930");
         assertThat(result.screeningResult()).isEmpty();
-        verifyNoInteractions(searchConditionRepository, stockRepository,
-                requirementAnalyzer, contextFactory, evaluationEngine);
+        verifyNoInteractions(stockRepository, requirementAnalyzer,
+                contextFactory, evaluationEngine);
     }
 
     @Test
@@ -222,6 +254,7 @@ class OperationalScreeningRunServiceTest {
                 Clock.fixed(Instant.EPOCH, ZoneOffset.UTC));
         var service = new OperationalScreeningRunService(
                 readinessResolver, completenessService,
+                dailyHistoryRequirementAnalyzer, bootstrapReadinessService,
                 searchConditionRepository, stockRepository,
                 requirementAnalyzer, contextFactory, realEngine);
 
@@ -244,6 +277,7 @@ class OperationalScreeningRunServiceTest {
     private OperationalScreeningRunService service() {
         return new OperationalScreeningRunService(
                 readinessResolver, completenessService,
+                dailyHistoryRequirementAnalyzer, bootstrapReadinessService,
                 searchConditionRepository, stockRepository,
                 requirementAnalyzer, contextFactory, evaluationEngine);
     }
@@ -251,12 +285,21 @@ class OperationalScreeningRunServiceTest {
     private void stubReady() {
         when(readinessResolver.resolve()).thenReturn(
                 OperationalScreeningReadinessResult.ready(TODAY, DATE));
+        when(dailyHistoryRequirementAnalyzer.analyze(
+                org.mockito.ArgumentMatchers.anyList()))
+                .thenReturn(dailyHistoryRequirement);
+        when(dailyHistoryRequirement.requiredPreviousTradingDayCount())
+                .thenReturn(120);
+        when(bootstrapReadinessService.check(DATE, 120))
+                .thenReturn(bootstrapReadiness);
+        when(bootstrapReadiness.ready()).thenReturn(true);
     }
 
     private void verifyNoDownstreamInteractions() {
-        verifyNoInteractions(completenessService, searchConditionRepository,
-                stockRepository, requirementAnalyzer, contextFactory,
-                evaluationEngine);
+        verifyNoInteractions(completenessService,
+                dailyHistoryRequirementAnalyzer, bootstrapReadinessService,
+                searchConditionRepository, stockRepository,
+                requirementAnalyzer, contextFactory, evaluationEngine);
     }
 
     private OperationalScreeningCompletenessResult complete(int count) {

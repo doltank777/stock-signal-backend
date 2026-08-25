@@ -159,6 +159,28 @@ class OperationalMorningRunCoordinatorTest {
     }
 
     @Test
+    void bootstrapNotReadyRemainsRetryableUntilNextMorningTick() {
+        at(2026, 8, 24, 8, 30);
+        OperationalRealtimeScreeningLifecycleResult notReady = skipped(
+                OperationalScreeningRunStatus.HISTORY_BOOTSTRAP_NOT_READY);
+        OperationalRealtimeScreeningLifecycleResult completed = completed(
+                selection(), result(
+                        RealtimeTargetReconciliationStatus.COMPLETED));
+        when(lifecycle.run()).thenReturn(notReady).thenReturn(completed);
+
+        coordinator.executeTick();
+        assertThat(coordinator.snapshot().status())
+                .isEqualTo(OperationalMorningRunStatus.PENDING_SCREENING);
+
+        at(2026, 8, 24, 8, 35);
+        coordinator.executeTick();
+
+        verify(lifecycle, times(2)).run();
+        assertThat(coordinator.snapshot().status())
+                .isEqualTo(OperationalMorningRunStatus.COMPLETED);
+    }
+
+    @Test
     void nonTradingDayClearsPhysicalTargetsAndStopsRetry() {
         at(2026, 8, 24, 8, 30);
         OperationalRealtimeScreeningLifecycleResult nonTrading = skipped(

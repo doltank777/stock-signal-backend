@@ -41,6 +41,14 @@ public record OperationalScreeningRunResult(
                 Optional.empty(), Optional.empty());
     }
 
+    public static OperationalScreeningRunResult historyBootstrapNotReady(
+            LocalDate today, LocalDate evaluationDate) {
+        return new OperationalScreeningRunResult(
+                OperationalScreeningRunStatus.HISTORY_BOOTSTRAP_NOT_READY,
+                today, Optional.of(evaluationDate),
+                Optional.empty(), Optional.empty());
+    }
+
     public static OperationalScreeningRunResult dataIncomplete(
             LocalDate today,
             LocalDate evaluationDate,
@@ -74,7 +82,9 @@ public record OperationalScreeningRunResult(
             return;
         }
         require(evaluationDate.isPresent());
-        if (status == OperationalScreeningRunStatus.FINALIZATION_NOT_READY) {
+        if (status == OperationalScreeningRunStatus.FINALIZATION_NOT_READY
+                || status == OperationalScreeningRunStatus
+                .HISTORY_BOOTSTRAP_NOT_READY) {
             require(completeness.isEmpty() && screeningResult.isEmpty());
             return;
         }
