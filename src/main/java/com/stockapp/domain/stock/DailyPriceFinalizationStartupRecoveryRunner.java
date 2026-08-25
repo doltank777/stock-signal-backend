@@ -18,7 +18,8 @@ import java.time.ZoneId;
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE)
 @Profile("!test & !daily-price-load & !daily-price-update & !screening-run "
-        + "& !schema-validate & !kis-websocket-probe & !kis-daily-price-probe")
+        + "& !schema-validate & !kis-websocket-probe & !kis-daily-price-probe "
+        + "& !daily-history-bootstrap")
 @ConditionalOnProperty(
         prefix = "kis.daily-price.finalization.startup-recovery",
         name = "enabled",

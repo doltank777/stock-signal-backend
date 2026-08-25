@@ -13,7 +13,8 @@ import java.time.LocalDate;
 @Slf4j
 @Component
 @Profile("!test & !daily-price-load & !daily-price-update & !screening-run "
-        + "& !schema-validate & !kis-websocket-probe & !kis-daily-price-probe")
+        + "& !schema-validate & !kis-websocket-probe & !kis-daily-price-probe "
+        + "& !daily-history-bootstrap")
 @ConditionalOnProperty(
         prefix = "kis.daily-price.finalization.scheduler",
         name = "enabled",

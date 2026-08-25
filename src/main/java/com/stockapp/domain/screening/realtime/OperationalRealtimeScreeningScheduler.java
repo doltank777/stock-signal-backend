@@ -8,7 +8,8 @@ import org.springframework.stereotype.Component;
 
 @Component
 @Profile("!test & !daily-price-load & !daily-price-update & !screening-run "
-        + "& !schema-validate & !kis-websocket-probe & !kis-daily-price-probe")
+        + "& !schema-validate & !kis-websocket-probe & !kis-daily-price-probe "
+        + "& !daily-history-bootstrap")
 @ConditionalOnProperty(
         prefix = "operational-screening.realtime.morning",
         name = "enabled",

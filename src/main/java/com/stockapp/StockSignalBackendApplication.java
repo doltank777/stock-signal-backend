@@ -18,7 +18,8 @@ public class StockSignalBackendApplication {
 
 	static void closeAfterBatch(ConfigurableApplicationContext context) {
 		if (context.getEnvironment().acceptsProfiles(
-				Profiles.of("daily-price-load | daily-price-update | screening-run | schema-validate"))) {
+				Profiles.of("daily-price-load | daily-price-update | screening-run "
+						+ "| schema-validate | daily-history-bootstrap"))) {
 			context.close();
 		}
 	}

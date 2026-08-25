@@ -51,7 +51,8 @@ class DailyPriceFinalizationAutomationConditionTest {
     void automationIsIsolatedFromBatchProbeAndTestProfiles() {
         for (String profile : new String[]{"test", "daily-price-load",
                 "daily-price-update", "screening-run", "schema-validate",
-                "kis-websocket-probe", "kis-daily-price-probe"}) {
+                "kis-websocket-probe", "kis-daily-price-probe",
+                "daily-history-bootstrap"}) {
             contextRunner.withInitializer(context -> context.getEnvironment()
                             .setActiveProfiles(profile))
                     .withPropertyValues(

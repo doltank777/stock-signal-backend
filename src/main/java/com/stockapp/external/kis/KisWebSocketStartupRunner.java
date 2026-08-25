@@ -20,7 +20,9 @@ import java.util.List;
 @Slf4j
 @Component
 @Order(Ordered.LOWEST_PRECEDENCE)
-@Profile("local & !test & !daily-price-load & !daily-price-update & !screening-run & !schema-validate & !kis-websocket-probe")
+@Profile("local & !test & !daily-price-load & !daily-price-update "
+        + "& !screening-run & !schema-validate & !kis-websocket-probe "
+        + "& !daily-history-bootstrap")
 @RequiredArgsConstructor
 public class KisWebSocketStartupRunner implements ApplicationRunner {
 

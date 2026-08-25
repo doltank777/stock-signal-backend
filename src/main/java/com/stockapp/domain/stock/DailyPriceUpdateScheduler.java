@@ -15,7 +15,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
 @Component
-@Profile("!daily-price-load & !daily-price-update & !screening-run & !schema-validate")
+@Profile("!daily-price-load & !daily-price-update & !screening-run "
+        + "& !schema-validate & !daily-history-bootstrap")
 @ConditionalOnProperty(
         prefix = "kis.daily-price.update.scheduler",
         name = "enabled",
