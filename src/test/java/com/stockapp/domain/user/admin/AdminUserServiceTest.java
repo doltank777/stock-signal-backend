@@ -6,16 +6,20 @@ import com.stockapp.domain.user.UserRepository;
 import com.stockapp.domain.user.UserRole;
 import com.stockapp.domain.user.MembershipType;
 import com.stockapp.domain.user.admin.dto.AdminUserDetailResponse;
+import com.stockapp.domain.user.admin.dto.AdminUserCreateRequest;
 import com.stockapp.domain.user.admin.dto.AdminUserMembershipUpdateRequest;
 import com.stockapp.domain.user.admin.dto.AdminUserPageResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import com.stockapp.global.util.CryptoUtil;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -43,6 +47,12 @@ class AdminUserServiceTest {
     @Mock
     private NotificationTokenRepository notificationTokenRepository;
 
+    @Mock
+    private PasswordEncoder passwordEncoder;
+
+    @Mock
+    private CryptoUtil cryptoUtil;
+
     private AdminUserService adminUserService;
 
     @BeforeEach
@@ -50,8 +60,85 @@ class AdminUserServiceTest {
         adminUserService = new AdminUserService(
                 userRepository,
                 notificationTokenRepository,
-                Clock.fixed(NOW, ZoneOffset.UTC)
+                Clock.fixed(NOW, ZoneOffset.UTC),
+                passwordEncoder,
+                cryptoUtil
         );
+    }
+
+    @Test
+    void createsFreeUserWithEncodedPasswordAndEncryptedPhone() {
+        AdminUserCreateRequest request = createRequest(
+                UserRole.USER, MembershipType.FREE, null, null);
+        when(passwordEncoder.encode("password"))
+                .thenReturn("encoded-password");
+        when(cryptoUtil.encrypt("01012345678"))
+                .thenReturn("encrypted-phone");
+        when(userRepository.save(any(User.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        AdminUserDetailResponse response = adminUserService.createUser(request);
+
+        ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).save(captor.capture());
+        User saved = captor.getValue();
+        assertThat(saved.getPassword()).isEqualTo("encoded-password");
+        assertThat(saved.getPhoneNumber()).isEqualTo("encrypted-phone");
+        assertThat(saved.getRole()).isEqualTo(UserRole.USER);
+        assertThat(saved.getMembershipType()).isEqualTo(MembershipType.FREE);
+        assertThat(response.getMembershipStatus())
+                .isEqualTo(AdminMembershipStatus.FREE);
+    }
+
+    @Test
+    void createsAdminAndPaidUserWithRequestedMembership() {
+        AdminUserCreateRequest adminRequest = createRequest(
+                UserRole.ADMIN, MembershipType.FREE, null, null);
+        stubCreateDependencies();
+        AdminUserDetailResponse admin =
+                adminUserService.createUser(adminRequest);
+        assertThat(admin.getRole()).isEqualTo(UserRole.ADMIN);
+
+        AdminUserCreateRequest paidRequest = createRequest(
+                UserRole.USER, MembershipType.PAID,
+                NOW.minusSeconds(1), NOW.plusSeconds(1));
+        AdminUserDetailResponse paid =
+                adminUserService.createUser(paidRequest);
+        assertThat(paid.getMembershipStatus())
+                .isEqualTo(AdminMembershipStatus.PAID_ACTIVE);
+    }
+
+    @Test
+    void rejectsDuplicateEmailBeforeEncodingOrSaving() {
+        AdminUserCreateRequest request = createRequest(
+                UserRole.USER, MembershipType.FREE, null, null);
+        when(userRepository.existsByEmail("user@example.com"))
+                .thenReturn(true);
+
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> adminUserService.createUser(request))
+                .withMessage("이미 가입된 이메일입니다.");
+
+        verify(passwordEncoder, never()).encode(any());
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void rejectsInvalidCreateMembershipPeriodsBeforeSaving() {
+        assertThatIllegalArgumentException().isThrownBy(() ->
+                adminUserService.createUser(createRequest(
+                        UserRole.USER, MembershipType.PAID, null, NOW)));
+        assertThatIllegalArgumentException().isThrownBy(() ->
+                adminUserService.createUser(createRequest(
+                        UserRole.USER, MembershipType.PAID, NOW, null)));
+        assertThatIllegalArgumentException().isThrownBy(() ->
+                adminUserService.createUser(createRequest(
+                        UserRole.USER, MembershipType.PAID, NOW, NOW)));
+        assertThatIllegalArgumentException().isThrownBy(() ->
+                adminUserService.createUser(createRequest(
+                        UserRole.USER, MembershipType.FREE, NOW, null)));
+
+        verify(userRepository, never()).save(any());
     }
 
     @Test
@@ -326,5 +413,39 @@ class AdminUserServiceTest {
             when(request.getMembershipExpiredAt()).thenReturn(expiredAt);
         }
         return request;
+    }
+
+    private AdminUserCreateRequest createRequest(
+            UserRole role,
+            MembershipType membershipType,
+            Instant startedAt,
+            Instant expiredAt
+    ) {
+        AdminUserCreateRequest request = mock(AdminUserCreateRequest.class);
+        org.mockito.Mockito.lenient().when(request.getEmail())
+                .thenReturn("user@example.com");
+        org.mockito.Mockito.lenient().when(request.getPassword())
+                .thenReturn("password");
+        org.mockito.Mockito.lenient().when(request.getNickname())
+                .thenReturn("nickname");
+        org.mockito.Mockito.lenient().when(request.getPhoneNumber())
+                .thenReturn("01012345678");
+        org.mockito.Mockito.lenient().when(request.getRole()).thenReturn(role);
+        org.mockito.Mockito.lenient().when(request.getMembershipType())
+                .thenReturn(membershipType);
+        org.mockito.Mockito.lenient().when(request.getMembershipStartedAt())
+                .thenReturn(startedAt);
+        org.mockito.Mockito.lenient().when(request.getMembershipExpiredAt())
+                .thenReturn(expiredAt);
+        return request;
+    }
+
+    private void stubCreateDependencies() {
+        when(passwordEncoder.encode("password"))
+                .thenReturn("encoded-password");
+        when(cryptoUtil.encrypt("01012345678"))
+                .thenReturn("encrypted-phone");
+        when(userRepository.save(any(User.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
     }
 }
