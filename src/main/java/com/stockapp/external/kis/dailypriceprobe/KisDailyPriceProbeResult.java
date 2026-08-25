@@ -8,11 +8,17 @@ import java.time.OffsetDateTime;
 public record KisDailyPriceProbeResult(
         String stockCode,
         LocalDate targetDate,
+        LocalDate requestedStartDate,
+        LocalDate requestedEndDate,
         OffsetDateTime requestedAt,
-        int responseRowCount,
-        KisDailyPrice row
+        KisDailyPrice row,
+        KisDailyPriceProbeAnalysis analysis
 ) {
     public boolean rowFound() {
         return row != null;
+    }
+
+    public int responseRowCount() {
+        return analysis.responseRowCount();
     }
 }

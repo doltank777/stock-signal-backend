@@ -79,6 +79,32 @@ class KisDailyPriceProbeRunnerTest {
                 org.mockito.ArgumentMatchers.any());
     }
 
+    @Test
+    void analyzesRangeResponseWithOneReadOnlyApiCall() {
+        KisDailyPriceClient client = mock(KisDailyPriceClient.class);
+        LocalDate startDate = LocalDate.of(2026, 8, 1);
+        LocalDate endDate = LocalDate.of(2026, 8, 24);
+        when(client.getDailyPrices("005930", startDate, endDate))
+                .thenReturn(List.of(dailyPrice(endDate), dailyPrice(startDate)));
+        KisDailyPriceProbeProperties properties = new KisDailyPriceProbeProperties();
+        properties.setStockCode("005930");
+        properties.setStartDate("2026-08-01");
+        properties.setEndDate("2026-08-24");
+
+        KisDailyPriceProbeResult result = new KisDailyPriceProbeRunner(
+                properties, client, CLOCK, new KisDailyPriceProbeAnalyzer())
+                .execute();
+
+        assertThat(result.targetDate()).isNull();
+        assertThat(result.requestedStartDate()).isEqualTo(startDate);
+        assertThat(result.requestedEndDate()).isEqualTo(endDate);
+        assertThat(result.responseRowCount()).isEqualTo(2);
+        assertThat(result.analysis().responseOrder())
+                .isEqualTo(KisDailyPriceResponseOrder.DESCENDING);
+        assertThat(result.rowFound()).isFalse();
+        verify(client).getDailyPrices("005930", startDate, endDate);
+    }
+
     private KisDailyPriceProbeRunner runner(
             KisDailyPriceClient client,
             String stockCode,
@@ -87,7 +113,8 @@ class KisDailyPriceProbeRunnerTest {
         KisDailyPriceProbeProperties properties = new KisDailyPriceProbeProperties();
         properties.setStockCode(stockCode);
         properties.setTargetDate(targetDate);
-        return new KisDailyPriceProbeRunner(properties, client, CLOCK);
+        return new KisDailyPriceProbeRunner(
+                properties, client, CLOCK, new KisDailyPriceProbeAnalyzer());
     }
 
     private KisDailyPrice dailyPrice(LocalDate tradeDate) {

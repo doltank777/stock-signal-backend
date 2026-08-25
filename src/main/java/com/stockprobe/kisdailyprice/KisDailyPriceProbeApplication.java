@@ -6,6 +6,7 @@ import com.stockapp.external.kis.KisOAuthTokenClient;
 import com.stockapp.external.kis.dailypriceprobe.DirectKisAccessTokenProvider;
 import com.stockapp.external.kis.dailypriceprobe.KisDailyPriceProbeProperties;
 import com.stockapp.external.kis.dailypriceprobe.KisDailyPriceProbeRunner;
+import com.stockapp.external.kis.dailypriceprobe.KisDailyPriceProbeAnalyzer;
 import com.stockapp.global.config.KisProperties;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.WebApplicationType;
@@ -46,9 +47,15 @@ public class KisDailyPriceProbeApplication {
     KisDailyPriceProbeRunner kisDailyPriceProbeRunner(
             KisDailyPriceProbeProperties properties,
             KisDailyPriceClient client,
-            Clock clock
+            Clock clock,
+            KisDailyPriceProbeAnalyzer analyzer
     ) {
-        return new KisDailyPriceProbeRunner(properties, client, clock);
+        return new KisDailyPriceProbeRunner(properties, client, clock, analyzer);
+    }
+
+    @Bean
+    KisDailyPriceProbeAnalyzer kisDailyPriceProbeAnalyzer() {
+        return new KisDailyPriceProbeAnalyzer();
     }
 
     @Bean

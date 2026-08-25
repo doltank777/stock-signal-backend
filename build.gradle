@@ -178,6 +178,12 @@ tasks.register('kisDailyPriceProbe', org.springframework.boot.gradle.tasks.run.B
 	if (project.hasProperty('kisDailyPriceProbeTargetDate')) {
 		args "--kis-daily-price-probe.target-date=${project.property('kisDailyPriceProbeTargetDate')}"
 	}
+	if (project.hasProperty('kisDailyPriceProbeStartDate')) {
+		args "--kis-daily-price-probe.start-date=${project.property('kisDailyPriceProbeStartDate')}"
+	}
+	if (project.hasProperty('kisDailyPriceProbeEndDate')) {
+		args "--kis-daily-price-probe.end-date=${project.property('kisDailyPriceProbeEndDate')}"
+	}
 	systemProperty 'file.encoding', 'UTF-8'
 	jvmArgs = [
 			'-Dfile.encoding=UTF-8',

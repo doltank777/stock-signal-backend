@@ -18,6 +18,8 @@ public class KisDailyPriceProbeProperties {
 
     private String stockCode;
     private String targetDate;
+    private String startDate;
+    private String endDate;
 
     public String requiredStockCode() {
         if (stockCode == null || stockCode.isBlank()) {
@@ -38,5 +40,49 @@ public class KisDailyPriceProbeProperties {
                     "kis-daily-price-probe.target-date must use yyyy-MM-dd: "
                             + targetDate, exception);
         }
+    }
+
+    public KisDailyPriceProbeRequest resolvedRequest(Clock clock) {
+        boolean hasTargetDate = hasText(targetDate);
+        boolean hasStartDate = hasText(startDate);
+        boolean hasEndDate = hasText(endDate);
+
+        if (hasTargetDate && (hasStartDate || hasEndDate)) {
+            throw new IllegalArgumentException(
+                    "target-date cannot be combined with start-date or end-date");
+        }
+        if (hasStartDate != hasEndDate) {
+            throw new IllegalArgumentException(
+                    "start-date and end-date must be provided together");
+        }
+        if (hasStartDate) {
+            LocalDate resolvedStartDate = parseDate("start-date", startDate);
+            LocalDate resolvedEndDate = parseDate("end-date", endDate);
+            if (resolvedStartDate.isAfter(resolvedEndDate)) {
+                throw new IllegalArgumentException(
+                        "kis-daily-price-probe.start-date must be on or before end-date");
+            }
+            return new KisDailyPriceProbeRequest(
+                    resolvedStartDate, resolvedEndDate, null);
+        }
+
+        LocalDate resolvedTargetDate = resolvedTargetDate(clock);
+        return new KisDailyPriceProbeRequest(
+                resolvedTargetDate, resolvedTargetDate, resolvedTargetDate);
+    }
+
+    private LocalDate parseDate(String propertyName, String value) {
+        try {
+            return LocalDate.parse(value.trim());
+        } catch (DateTimeParseException exception) {
+            throw new IllegalArgumentException(
+                    "kis-daily-price-probe." + propertyName
+                            + " must use yyyy-MM-dd: " + value,
+                    exception);
+        }
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 }

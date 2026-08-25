@@ -39,6 +39,7 @@ class KisDailyPriceProbeProfileIsolationTest {
     void containsOnlyDailyPriceProbeBoundary() {
         contextRunner.run(context -> {
             assertThat(context).hasSingleBean(KisDailyPriceProbeRunner.class);
+            assertThat(context).hasSingleBean(KisDailyPriceProbeAnalyzer.class);
             assertThat(context).hasSingleBean(KisDailyPriceClient.class);
             assertThat(context).hasSingleBean(DirectKisAccessTokenProvider.class);
             assertThat(context).hasSingleBean(KisOAuthTokenClient.class);

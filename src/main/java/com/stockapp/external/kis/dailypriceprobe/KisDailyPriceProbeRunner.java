@@ -24,6 +24,7 @@ public class KisDailyPriceProbeRunner implements ApplicationRunner {
     private final KisDailyPriceProbeProperties properties;
     private final KisDailyPriceClient dailyPriceClient;
     private final Clock clock;
+    private final KisDailyPriceProbeAnalyzer analyzer;
 
     @Override
     public void run(ApplicationArguments args) {
@@ -32,13 +33,13 @@ public class KisDailyPriceProbeRunner implements ApplicationRunner {
 
     KisDailyPriceProbeResult execute() {
         String stockCode = properties.requiredStockCode();
-        LocalDate targetDate = properties.resolvedTargetDate(clock);
+        KisDailyPriceProbeRequest request = properties.resolvedRequest(clock);
         OffsetDateTime requestedAt = OffsetDateTime.now(clock.withZone(KOREA_ZONE));
 
         List<KisDailyPrice> response;
         try {
             response = dailyPriceClient.getDailyPrices(
-                    stockCode, targetDate, targetDate);
+                    stockCode, request.startDate(), request.endDate());
         } catch (KisApiException exception) {
             log.error("KIS daily price probe business error - msgCd: {}, msg1: {}",
                     exception.getMessageCode(), exception.getMessage());
@@ -48,18 +49,32 @@ public class KisDailyPriceProbeRunner implements ApplicationRunner {
                     exception.getStatusCode().value(), exception.getMessage());
             throw exception;
         }
-        KisDailyPrice row = response.stream()
-                .filter(price -> targetDate.equals(price.getTradeDate()))
-                .findFirst()
-                .orElse(null);
+        KisDailyPrice row = request.singleDateMode()
+                ? response.stream()
+                        .filter(price -> request.targetDate().equals(price.getTradeDate()))
+                        .findFirst()
+                        .orElse(null)
+                : null;
+        KisDailyPriceProbeAnalysis analysis = analyzer.analyze(
+                response, request.startDate(), request.endDate());
 
         KisDailyPriceProbeResult result = new KisDailyPriceProbeResult(
-                stockCode, targetDate, requestedAt, response.size(), row);
+                stockCode,
+                request.targetDate(),
+                request.startDate(),
+                request.endDate(),
+                requestedAt,
+                row,
+                analysis);
         logResult(result);
         return result;
     }
 
     private void logResult(KisDailyPriceProbeResult result) {
+        if (result.targetDate() == null) {
+            logRangeResult(result);
+            return;
+        }
         log.info("[KIS DAILY PRICE PROBE]\n\nstockCode={}\ntargetDate={}\nrequestedAt={}"
                         + "\n\nrowFound={}\nresponseRowCount={}",
                 result.stockCode(), result.targetDate(), result.requestedAt(),
@@ -70,5 +85,26 @@ public class KisDailyPriceProbeRunner implements ApplicationRunner {
                     row.getTradeDate(), row.getOpenPrice(), row.getHighPrice(),
                     row.getLowPrice(), row.getClosePrice(), row.getVolume());
         }
+    }
+
+    private void logRangeResult(KisDailyPriceProbeResult result) {
+        KisDailyPriceProbeAnalysis analysis = result.analysis();
+        log.info("[KIS DAILY PRICE RANGE PROBE]"
+                        + "\n\nstockCode={}\nrequestedStartDate={}\nrequestedEndDate={}"
+                        + "\nrequestedAt={}\n\nresponseRowCount={}"
+                        + "\nearliestResponseDate={}\nlatestResponseDate={}"
+                        + "\nresponseOrder={}\nduplicateDateCount={}"
+                        + "\noutOfRangeDateCount={}\nlimitReached={}"
+                        + "\nlimitReachedMeaning=responseRowCountEqualsOfficialLimitNotCompleteness"
+                        + "\nexactStartDatePresent={}\nexactEndDatePresent={}"
+                        + "\nfirstResponseDates={}\nlastResponseDates={}",
+                result.stockCode(), result.requestedStartDate(),
+                result.requestedEndDate(), result.requestedAt(),
+                analysis.responseRowCount(), analysis.earliestResponseDate(),
+                analysis.latestResponseDate(), analysis.responseOrder(),
+                analysis.duplicateDateCount(), analysis.outOfRangeDateCount(),
+                analysis.limitReached(), analysis.exactStartDatePresent(),
+                analysis.exactEndDatePresent(), analysis.firstResponseDates(),
+                analysis.lastResponseDates());
     }
 }
