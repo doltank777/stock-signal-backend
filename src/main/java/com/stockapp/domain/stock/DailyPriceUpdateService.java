@@ -10,8 +10,6 @@ import com.stockapp.global.config.KisProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.http.HttpStatusCode;
-import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClientResponseException;
 
 import java.time.Clock;
@@ -30,7 +28,6 @@ import java.util.List;
 public class DailyPriceUpdateService {
 
     private static final ZoneId KOREA_ZONE = ZoneId.of("Asia/Seoul");
-    private static final String RATE_LIMIT_CODE = "EGW00201";
     private static final List<MarketType> TARGET_MARKETS =
             List.of(MarketType.KOSPI, MarketType.KOSDAQ);
 
@@ -41,6 +38,7 @@ public class DailyPriceUpdateService {
     private final KisProperties kisProperties;
     private final DailyPriceLoadSleeper sleeper;
     private final Clock clock;
+    private final KisDailyPriceRequestExecutor requestExecutor;
 
     public DailyPriceUpdateResult update() {
         return update(LocalDate.now(clock.withZone(KOREA_ZONE)));
@@ -183,30 +181,25 @@ public class DailyPriceUpdateService {
             Stock stock, LocalDate startDate, LocalDate endDate,
             UpdateSummary summary) {
         KisProperties.Retry retry = kisProperties.getDailyPrice().getUpdate().getRetry();
-        long backoff = retry.getInitialBackoffMs();
-        for (int attempt = 1; attempt <= retry.getMaxAttempts(); attempt++) {
-            applyRequestDelay(summary);
-            try {
-                summary.apiCalls++;
-                return kisDailyPriceClient.getDailyPrices(
-                        stock.getStockCode(), startDate, endDate);
-            } catch (RuntimeException e) {
-                if (!isRetryable(e)) {
-                    throw e;
-                }
-                if (attempt == retry.getMaxAttempts()) {
-                    throw new RetryExhaustedException(e);
-                }
-                log.warn("KIS 일봉 업데이트 요청 재시도 - stockCode: {}, attempt: {}/{}, backoffMs: {}",
-                        stock.getStockCode(), attempt + 1,
-                        retry.getMaxAttempts(), backoff);
-                sleep(backoff);
-                if (attempt < retry.getMaxAttempts() - 1) {
-                    backoff = Math.multiplyExact(backoff, retry.getMultiplier());
-                }
-            }
+        KisDailyPriceRequestPolicy policy = new KisDailyPriceRequestPolicy(
+                retry.getMaxAttempts(), retry.getInitialBackoffMs(),
+                retry.getMultiplier());
+        try {
+            return requestExecutor.execute(
+                    policy,
+                    () -> kisDailyPriceClient.getDailyPrices(
+                            stock.getStockCode(), startDate, endDate),
+                    () -> {
+                        applyRequestDelay(summary);
+                        summary.apiCalls++;
+                    })
+                    .value();
+        } catch (KisDailyPriceRequestExhaustedException exception) {
+            throw new RetryExhaustedException(
+                    (RuntimeException) exception.getCause());
+        } catch (KisDailyPriceRequestInterruptedException exception) {
+            throw new BatchInterruptedException(exception);
         }
-        throw new IllegalStateException("도달할 수 없는 retry 상태입니다.");
     }
 
     private void applyRequestDelay(UpdateSummary summary) {
@@ -224,18 +217,6 @@ public class DailyPriceUpdateService {
             Thread.currentThread().interrupt();
             throw new BatchInterruptedException(e);
         }
-    }
-
-    private boolean isRetryable(RuntimeException exception) {
-        if (exception instanceof KisApiException kisException) {
-            return RATE_LIMIT_CODE.equals(kisException.getMessageCode());
-        }
-        if (exception instanceof ResourceAccessException) return true;
-        if (exception instanceof RestClientResponseException responseException) {
-            HttpStatusCode status = responseException.getStatusCode();
-            return status.value() == 429 || status.is5xxServerError();
-        }
-        return false;
     }
 
     private boolean isAuthenticationFailure(RuntimeException exception) {

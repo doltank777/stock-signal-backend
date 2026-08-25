@@ -65,7 +65,8 @@ class DailyPriceUpdateServiceTest {
         service = new DailyPriceUpdateService(
                 stockRepository, dailyPriceRepository, writer, client,
                 properties, sleeper,
-                Clock.fixed(Instant.parse("2026-08-15T08:00:00Z"), ZoneOffset.UTC));
+                Clock.fixed(Instant.parse("2026-08-15T08:00:00Z"), ZoneOffset.UTC),
+                new KisDailyPriceRequestExecutor(sleeper));
         kospi = stock(1L, "005930", MarketType.KOSPI);
         kosdaq = stock(2L, "035720", MarketType.KOSDAQ);
     }
@@ -186,7 +187,8 @@ class DailyPriceUpdateServiceTest {
         DailyPriceUpdateService todayService = new DailyPriceUpdateService(
                 stockRepository, dailyPriceRepository, writer, client,
                 properties, sleeper,
-                Clock.fixed(Instant.parse("2026-08-14T08:00:00Z"), ZoneOffset.UTC));
+                Clock.fixed(Instant.parse("2026-08-14T08:00:00Z"), ZoneOffset.UTC),
+                new KisDailyPriceRequestExecutor(sleeper));
         prepareOneStock(kospi, LocalDate.of(2026, 8, 12));
         KisDailyPrice past = price("2026-08-13");
         KisDailyPrice today = price("2026-08-14");
