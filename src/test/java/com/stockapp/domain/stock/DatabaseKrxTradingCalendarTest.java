@@ -170,6 +170,40 @@ class DatabaseKrxTradingCalendarTest {
                 .hasMessageContaining("missing dates");
     }
 
+    @Test
+    void returnsTradingDaysInInclusiveRangeOldestFirst() {
+        LocalDate start = LocalDate.of(2026, 8, 21);
+        LocalDate end = LocalDate.of(2026, 8, 24);
+        when(repository.countByTradeDateBetween(start, end)).thenReturn(4L);
+        when(repository
+                .findByTradeDateBetweenAndTradingDayTrueOrderByTradeDateAsc(
+                        start, end))
+                .thenReturn(List.of(day(start, true), day(end, true)));
+
+        assertThat(calendar.tradingDaysBetween(start, end))
+                .containsExactly(start, end);
+    }
+
+    @Test
+    void failsClosedWhenTradingDayRangeHasCalendarCoverageGap() {
+        LocalDate start = LocalDate.of(2026, 8, 19);
+        LocalDate end = LocalDate.of(2026, 8, 21);
+        when(repository.countByTradeDateBetween(start, end)).thenReturn(2L);
+
+        assertThatThrownBy(() -> calendar.tradingDaysBetween(start, end))
+                .isInstanceOf(TradingCalendarUnavailableException.class)
+                .hasMessageContaining("missing dates");
+    }
+
+    @Test
+    void rejectsInvalidTradingDayRangeBeforeRepositoryAccess() {
+        assertThatThrownBy(() -> calendar.tradingDaysBetween(
+                LocalDate.of(2026, 8, 21), LocalDate.of(2026, 8, 20)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("on or after");
+        verifyNoInteractions(repository);
+    }
+
     private KrxTradingDay day(LocalDate date, boolean trading) {
         return KrxTradingDay.create(date, trading, "KIS", Instant.EPOCH);
     }

@@ -82,4 +82,33 @@ public class DatabaseKrxTradingCalendar implements KrxTradingCalendar {
         java.util.Collections.reverse(ascending);
         return List.copyOf(ascending);
     }
+
+    @Override
+    public List<LocalDate> tradingDaysBetween(
+            LocalDate startDate,
+            LocalDate endDate
+    ) {
+        Objects.requireNonNull(startDate, "startDate is required");
+        Objects.requireNonNull(endDate, "endDate is required");
+        if (endDate.isBefore(startDate)) {
+            throw new IllegalArgumentException(
+                    "endDate must be on or after startDate");
+        }
+
+        long expectedRows = ChronoUnit.DAYS.between(startDate, endDate) + 1;
+        long actualRows = repository.countByTradeDateBetween(
+                startDate, endDate);
+        if (actualRows != expectedRows) {
+            throw new TradingCalendarUnavailableException(
+                    startDate, "calendar coverage contains missing dates through "
+                            + endDate);
+        }
+
+        return repository
+                .findByTradeDateBetweenAndTradingDayTrueOrderByTradeDateAsc(
+                        startDate, endDate)
+                .stream()
+                .map(KrxTradingDay::getTradeDate)
+                .toList();
+    }
 }

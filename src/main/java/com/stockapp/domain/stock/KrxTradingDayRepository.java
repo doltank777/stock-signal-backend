@@ -20,4 +20,11 @@ public interface KrxTradingDayRepository
 
     long countByTradeDateGreaterThanEqualAndTradeDateLessThan(
             LocalDate startDate, LocalDate endDate);
+
+    List<KrxTradingDay>
+    findByTradeDateBetweenAndTradingDayTrueOrderByTradeDateAsc(
+            LocalDate startDate, LocalDate endDate);
+
+    long countByTradeDateBetween(
+            LocalDate startDate, LocalDate endDate);
 }

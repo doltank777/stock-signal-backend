@@ -65,6 +65,35 @@ class KrxTradingDayRepositoryTest {
     }
 
     @Test
+    void queriesTradingDaysAndCountsAllRowsInInclusiveRange() {
+        Instant synchronizedAt = Instant.EPOCH;
+        repository.saveAll(List.of(
+                KrxTradingDay.create(LocalDate.of(2026, 8, 20), true,
+                        "KIS", synchronizedAt),
+                KrxTradingDay.create(LocalDate.of(2026, 8, 21), true,
+                        "KIS", synchronizedAt),
+                KrxTradingDay.create(LocalDate.of(2026, 8, 22), false,
+                        "KIS", synchronizedAt),
+                KrxTradingDay.create(LocalDate.of(2026, 8, 23), false,
+                        "KIS", synchronizedAt),
+                KrxTradingDay.create(LocalDate.of(2026, 8, 24), true,
+                        "KIS", synchronizedAt),
+                KrxTradingDay.create(LocalDate.of(2026, 8, 25), true,
+                        "KIS", synchronizedAt)));
+        repository.flush();
+
+        LocalDate start = LocalDate.of(2026, 8, 21);
+        LocalDate end = LocalDate.of(2026, 8, 24);
+        assertThat(repository.countByTradeDateBetween(start, end))
+                .isEqualTo(4L);
+        assertThat(repository
+                .findByTradeDateBetweenAndTradingDayTrueOrderByTradeDateAsc(
+                        start, end))
+                .extracting(KrxTradingDay::getTradeDate)
+                .containsExactly(start, end);
+    }
+
+    @Test
     void writerInsertsUpdatesAndRefreshesUnchangedSynchronizationTime() {
         KrxTradingCalendarWriter writer =
                 new KrxTradingCalendarWriter(repository);

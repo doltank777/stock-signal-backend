@@ -10,4 +10,8 @@ public interface KrxTradingCalendar {
     LocalDate previousTradingDay(LocalDate date);
 
     List<LocalDate> previousTradingDays(LocalDate date, int count);
+
+    List<LocalDate> tradingDaysBetween(
+            LocalDate startDate,
+            LocalDate endDate);
 }
