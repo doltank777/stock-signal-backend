@@ -1,7 +1,9 @@
 package com.stockapp.domain.stock;
 
 import com.stockapp.domain.stock.dto.BootstrapDailyHistoryBatchResult;
+import com.stockapp.domain.stock.dto.BootstrapDailyHistoryRequest;
 import com.stockapp.domain.stock.dto.BootstrapDailyHistoryStockSummary;
+import com.stockapp.domain.stock.dto.DailyHistoryBootstrapExecutionSnapshot;
 import com.stockapp.domain.stock.dto.BootstrapMissingHistoryFetchFillFailure;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -10,6 +12,8 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
+import java.time.Clock;
+
 @Slf4j
 @Component
 @Profile("daily-history-bootstrap")
@@ -17,6 +21,8 @@ import org.springframework.stereotype.Component;
 public class DailyHistoryBootstrapRunner implements ApplicationRunner {
 
     private final BootstrapDailyHistoryBatchService batchService;
+    private final DailyHistoryBootstrapExecutionStore executionStore;
+    private final Clock clock;
 
     @Override
     public void run(ApplicationArguments args) {
@@ -24,13 +30,34 @@ public class DailyHistoryBootstrapRunner implements ApplicationRunner {
     }
 
     BootstrapDailyHistoryBatchResult execute() {
-        BootstrapDailyHistoryBatchResult result = batchService.bootstrap();
+        BootstrapDailyHistoryRequest request = batchService.resolveRequest();
+        DailyHistoryBootstrapExecutionSnapshot execution =
+                executionStore.start(
+                        request.evaluationDate(),
+                        request.requiredPreviousTradingDayCount(),
+                        clock.instant());
+        BootstrapDailyHistoryBatchResult result;
+        try {
+            result = batchService.bootstrap(request);
+            executionStore.complete(execution.id(), result, clock.instant());
+        } catch (RuntimeException | Error error) {
+            persistFailure(execution.id(), error);
+            throw error;
+        }
         logSummary(result);
         result.problemStocks().forEach(this::logProblemStock);
         if (!result.ready()) {
             throw new DailyHistoryBootstrapNotReadyException(result);
         }
         return result;
+    }
+
+    private void persistFailure(Long executionId, Throwable original) {
+        try {
+            executionStore.fail(executionId, original, clock.instant());
+        } catch (RuntimeException persistenceFailure) {
+            original.addSuppressed(persistenceFailure);
+        }
     }
 
     private void logSummary(BootstrapDailyHistoryBatchResult result) {

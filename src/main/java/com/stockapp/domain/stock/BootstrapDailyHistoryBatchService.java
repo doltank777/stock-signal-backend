@@ -6,6 +6,7 @@ import com.stockapp.domain.screening.OperationalScreeningReadinessStatus;
 import com.stockapp.domain.screening.metric.OperationalDailyHistoryRequirement;
 import com.stockapp.domain.screening.metric.OperationalDailyHistoryRequirementAnalyzer;
 import com.stockapp.domain.stock.dto.BootstrapDailyHistoryBatchResult;
+import com.stockapp.domain.stock.dto.BootstrapDailyHistoryRequest;
 import com.stockapp.domain.stock.dto.BootstrapDailyHistoryStockSummary;
 import com.stockapp.domain.stock.dto.BootstrapMissingHistoryFetchFillResult;
 import lombok.RequiredArgsConstructor;
@@ -31,11 +32,23 @@ public class BootstrapDailyHistoryBatchService {
     private final BootstrapMissingHistoryFetchFillService fetchFillService;
 
     public BootstrapDailyHistoryBatchResult bootstrap() {
+        return bootstrap(resolveRequest());
+    }
+
+    public BootstrapDailyHistoryRequest resolveRequest() {
         LocalDate evaluationDate = resolveEvaluationDate();
         OperationalDailyHistoryRequirement requirement =
                 requirementAnalyzer.analyze();
-        int requiredPreviousCount =
-                requirement.requiredPreviousTradingDayCount();
+        return new BootstrapDailyHistoryRequest(
+                evaluationDate,
+                requirement.requiredPreviousTradingDayCount());
+    }
+
+    public BootstrapDailyHistoryBatchResult bootstrap(
+            BootstrapDailyHistoryRequest request
+    ) {
+        LocalDate evaluationDate = request.evaluationDate();
+        int requiredPreviousCount = request.requiredPreviousTradingDayCount();
         List<Stock> stocks = stockRepository.findByMarketTypeInOrderByIdAsc(
                 TARGET_MARKETS);
         if (stocks.isEmpty()) {

@@ -1,12 +1,17 @@
 package com.stockapp.domain.stock;
 
 import com.stockapp.domain.stock.dto.BootstrapDailyHistoryBatchResult;
+import com.stockapp.domain.stock.dto.BootstrapDailyHistoryRequest;
 import com.stockapp.domain.stock.dto.BootstrapDailyHistoryStockSummary;
 import com.stockapp.domain.stock.dto.BootstrapMissingHistoryFetchFillFailure;
+import com.stockapp.domain.stock.dto.DailyHistoryBootstrapExecutionSnapshot;
 import com.stockapp.domain.stock.dto.KisDailyPriceRequestChunk;
 import org.junit.jupiter.api.Test;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -19,42 +24,86 @@ class DailyHistoryBootstrapRunnerTest {
 
     private static final LocalDate EVALUATION_DATE =
             LocalDate.of(2026, 8, 24);
+    private static final Instant NOW = Instant.parse("2026-08-24T00:00:00Z");
+    private static final BootstrapDailyHistoryRequest REQUEST =
+            new BootstrapDailyHistoryRequest(EVALUATION_DATE, 120);
 
     private final BootstrapDailyHistoryBatchService batchService =
             mock(BootstrapDailyHistoryBatchService.class);
+    private final DailyHistoryBootstrapExecutionStore executionStore =
+            mock(DailyHistoryBootstrapExecutionStore.class);
     private final DailyHistoryBootstrapRunner runner =
-            new DailyHistoryBootstrapRunner(batchService);
+            new DailyHistoryBootstrapRunner(
+                    batchService,
+                    executionStore,
+                    Clock.fixed(NOW, ZoneOffset.UTC));
 
     @Test
     void returnsReadyResultAfterOneBatchExecution() {
         BootstrapDailyHistoryBatchResult result = result(true);
-        when(batchService.bootstrap()).thenReturn(result);
+        arrangeExecution(result);
 
         assertThat(runner.execute()).isSameAs(result);
-        verify(batchService).bootstrap();
+        verify(executionStore).complete(1L, result, NOW);
     }
 
     @Test
     void notReadyResultProducesFailureExitSemantics() {
         BootstrapDailyHistoryBatchResult result = result(false);
-        when(batchService.bootstrap()).thenReturn(result);
+        arrangeExecution(result);
 
         assertThatExceptionOfType(DailyHistoryBootstrapNotReadyException.class)
                 .isThrownBy(runner::execute)
                 .satisfies(exception -> assertThat(exception.getResult())
                         .isSameAs(result));
-        verify(batchService).bootstrap();
+        verify(executionStore).complete(1L, result, NOW);
     }
 
     @Test
     void propagatesUnexpectedBatchException() {
         IllegalStateException failure =
                 new IllegalStateException("calendar unavailable");
-        when(batchService.bootstrap()).thenThrow(failure);
+        arrangeStart();
+        when(batchService.bootstrap(REQUEST)).thenThrow(failure);
 
         assertThatExceptionOfType(IllegalStateException.class)
                 .isThrownBy(runner::execute)
                 .isSameAs(failure);
+        verify(executionStore).fail(1L, failure, NOW);
+    }
+
+    @Test
+    void persistenceFailurePreventsSuccessfulCompletion() {
+        BootstrapDailyHistoryBatchResult result = result(true);
+        arrangeStart();
+        when(batchService.bootstrap(REQUEST)).thenReturn(result);
+        IllegalStateException failure =
+                new IllegalStateException("execution update failed");
+        when(executionStore.complete(1L, result, NOW)).thenThrow(failure);
+
+        assertThatExceptionOfType(IllegalStateException.class)
+                .isThrownBy(runner::execute)
+                .isSameAs(failure);
+        verify(executionStore).fail(1L, failure, NOW);
+    }
+
+    private void arrangeExecution(BootstrapDailyHistoryBatchResult result) {
+        arrangeStart();
+        when(batchService.bootstrap(REQUEST)).thenReturn(result);
+    }
+
+    private void arrangeStart() {
+        when(batchService.resolveRequest()).thenReturn(REQUEST);
+        when(executionStore.start(EVALUATION_DATE, 120, NOW))
+                .thenReturn(executionSnapshot());
+    }
+
+    private DailyHistoryBootstrapExecutionSnapshot executionSnapshot() {
+        return new DailyHistoryBootstrapExecutionSnapshot(
+                1L, EVALUATION_DATE,
+                DailyHistoryBootstrapExecutionStatus.RUNNING, false,
+                120, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                NOW, null, null);
     }
 
     private BootstrapDailyHistoryBatchResult result(boolean ready) {
