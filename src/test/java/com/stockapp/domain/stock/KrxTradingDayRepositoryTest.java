@@ -2,6 +2,7 @@ package com.stockapp.domain.stock;
 
 import com.stockapp.external.kis.dto.KisTradingDay;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 
@@ -38,6 +39,29 @@ class KrxTradingDayRepositoryTest {
                         LocalDate.of(2026, 8, 17)))
                 .get().extracting(KrxTradingDay::getTradeDate)
                 .isEqualTo(LocalDate.of(2026, 8, 14));
+    }
+
+    @Test
+    void queriesOnlyLimitedTradingDaysBeforeDateInDescendingOrder() {
+        Instant synchronizedAt = Instant.EPOCH;
+        repository.saveAll(List.of(
+                KrxTradingDay.create(LocalDate.of(2026, 8, 19), true,
+                        "KIS", synchronizedAt),
+                KrxTradingDay.create(LocalDate.of(2026, 8, 20), false,
+                        "KIS", synchronizedAt),
+                KrxTradingDay.create(LocalDate.of(2026, 8, 21), true,
+                        "KIS", synchronizedAt),
+                KrxTradingDay.create(LocalDate.of(2026, 8, 24), true,
+                        "KIS", synchronizedAt)));
+        repository.flush();
+
+        assertThat(repository
+                .findByTradeDateBeforeAndTradingDayTrueOrderByTradeDateDesc(
+                        LocalDate.of(2026, 8, 24), PageRequest.of(0, 2)))
+                .extracting(KrxTradingDay::getTradeDate)
+                .containsExactly(
+                        LocalDate.of(2026, 8, 21),
+                        LocalDate.of(2026, 8, 19));
     }
 
     @Test
