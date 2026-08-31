@@ -1,7 +1,7 @@
 package com.stockapp.external.kis.dailypriceprobe;
 
-import com.stockapp.external.kis.KisApiException;
 import com.stockapp.external.kis.KisDailyPriceClient;
+import com.stockapp.external.kis.KisDailyPriceResponseMetadata;
 import com.stockapp.external.kis.dto.KisDailyPrice;
 import org.junit.jupiter.api.Test;
 
@@ -28,8 +28,9 @@ class KisDailyPriceProbeRunnerTest {
     void returnsTargetDateRowWithOneApiCall() {
         KisDailyPriceClient client = mock(KisDailyPriceClient.class);
         KisDailyPrice row = dailyPrice(TARGET_DATE);
-        when(client.getDailyPrices("005930", TARGET_DATE, TARGET_DATE))
-                .thenReturn(List.of(row));
+        when(client.getDailyPricesWithMetadata(
+                "005930", TARGET_DATE, TARGET_DATE))
+                .thenReturn(success(List.of(row)));
 
         KisDailyPriceProbeResult result = runner(client, "005930", "2026-08-20")
                 .execute();
@@ -37,33 +38,46 @@ class KisDailyPriceProbeRunnerTest {
         assertThat(result.rowFound()).isTrue();
         assertThat(result.responseRowCount()).isEqualTo(1);
         assertThat(result.row()).isSameAs(row);
-        verify(client).getDailyPrices("005930", TARGET_DATE, TARGET_DATE);
+        assertThat(result.classification())
+                .isEqualTo(KisDailyPriceProbeClassification.NORMAL_WITH_DATA);
+        verify(client).getDailyPricesWithMetadata(
+                "005930", TARGET_DATE, TARGET_DATE);
     }
 
     @Test
     void reportsSuccessfulResponseWithoutTargetDateRow() {
         KisDailyPriceClient client = mock(KisDailyPriceClient.class);
-        when(client.getDailyPrices("005930", TARGET_DATE, TARGET_DATE))
-                .thenReturn(List.of());
+        when(client.getDailyPricesWithMetadata(
+                "005930", TARGET_DATE, TARGET_DATE))
+                .thenReturn(success(List.of()));
 
         KisDailyPriceProbeResult result = runner(client, "005930", "2026-08-20")
                 .execute();
 
         assertThat(result.rowFound()).isFalse();
         assertThat(result.responseRowCount()).isZero();
-        verify(client).getDailyPrices("005930", TARGET_DATE, TARGET_DATE);
+        assertThat(result.classification())
+                .isEqualTo(KisDailyPriceProbeClassification.NORMAL_EMPTY);
+        verify(client).getDailyPricesWithMetadata(
+                "005930", TARGET_DATE, TARGET_DATE);
     }
 
     @Test
-    void preservesKisBusinessError() {
+    void classifiesKisBusinessError() {
         KisDailyPriceClient client = mock(KisDailyPriceClient.class);
-        when(client.getDailyPrices("005930", TARGET_DATE, TARGET_DATE))
-                .thenThrow(new KisApiException("TEST001", "probe failure"));
+        when(client.getDailyPricesWithMetadata(
+                "005930", TARGET_DATE, TARGET_DATE))
+                .thenReturn(new KisDailyPriceResponseMetadata(
+                        200, "1", "TEST001", "probe failure", List.of()));
 
-        assertThatThrownBy(() -> runner(client, "005930", "2026-08-20").execute())
-                .isInstanceOf(KisApiException.class)
-                .hasMessageContaining("probe failure");
-        verify(client).getDailyPrices("005930", TARGET_DATE, TARGET_DATE);
+        KisDailyPriceProbeResult result = runner(
+                client, "005930", "2026-08-20").execute();
+
+        assertThat(result.classification())
+                .isEqualTo(KisDailyPriceProbeClassification.KIS_BUSINESS_ERROR);
+        assertThat(result.messageCode()).isEqualTo("TEST001");
+        verify(client).getDailyPricesWithMetadata(
+                "005930", TARGET_DATE, TARGET_DATE);
     }
 
     @Test
@@ -73,7 +87,7 @@ class KisDailyPriceProbeRunnerTest {
         assertThatThrownBy(() -> runner(client, " ", "2026-08-20").execute())
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("stock-code is required");
-        verify(client, never()).getDailyPrices(
+        verify(client, never()).getDailyPricesWithMetadata(
                 org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.any());
@@ -84,8 +98,9 @@ class KisDailyPriceProbeRunnerTest {
         KisDailyPriceClient client = mock(KisDailyPriceClient.class);
         LocalDate startDate = LocalDate.of(2026, 8, 1);
         LocalDate endDate = LocalDate.of(2026, 8, 24);
-        when(client.getDailyPrices("005930", startDate, endDate))
-                .thenReturn(List.of(dailyPrice(endDate), dailyPrice(startDate)));
+        when(client.getDailyPricesWithMetadata("005930", startDate, endDate))
+                .thenReturn(success(List.of(
+                        dailyPrice(endDate), dailyPrice(startDate))));
         KisDailyPriceProbeProperties properties = new KisDailyPriceProbeProperties();
         properties.setStockCode("005930");
         properties.setStartDate("2026-08-01");
@@ -102,7 +117,8 @@ class KisDailyPriceProbeRunnerTest {
         assertThat(result.analysis().responseOrder())
                 .isEqualTo(KisDailyPriceResponseOrder.DESCENDING);
         assertThat(result.rowFound()).isFalse();
-        verify(client).getDailyPrices("005930", startDate, endDate);
+        verify(client).getDailyPricesWithMetadata(
+                "005930", startDate, endDate);
     }
 
     private KisDailyPriceProbeRunner runner(
@@ -126,5 +142,10 @@ class KisDailyPriceProbeRunnerTest {
                 .closePrice(71000L)
                 .volume(12345678L)
                 .build();
+    }
+
+    private KisDailyPriceResponseMetadata success(List<KisDailyPrice> rows) {
+        return new KisDailyPriceResponseMetadata(
+                200, "0", "MCA00000", "success", rows);
     }
 }

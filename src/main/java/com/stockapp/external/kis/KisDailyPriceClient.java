@@ -4,6 +4,7 @@ import com.stockapp.external.kis.dto.KisDailyPrice;
 import com.stockapp.external.kis.dto.KisDailyPriceResponse;
 import com.stockapp.global.config.KisProperties;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
@@ -33,6 +34,20 @@ public class KisDailyPriceClient {
             LocalDate startDate,
             LocalDate endDate) {
 
+        KisDailyPriceResponseMetadata metadata = getDailyPricesWithMetadata(
+                stockCode, startDate, endDate);
+        if (!"0".equals(metadata.returnCode())) {
+            throw new KisApiException(
+                    metadata.messageCode(), metadata.message());
+        }
+        return metadata.rows();
+    }
+
+    public KisDailyPriceResponseMetadata getDailyPricesWithMetadata(
+            String stockCode,
+            LocalDate startDate,
+            LocalDate endDate) {
+
         validateRequest(stockCode, startDate, endDate);
 
         String accessToken = accessTokenProvider.getAccessToken();
@@ -41,7 +56,7 @@ public class KisDailyPriceClient {
                 .baseUrl(kisProperties.getBaseUrl())
                 .build();
 
-        KisDailyPriceResponse response = restClient.get()
+        ResponseEntity<KisDailyPriceResponse> responseEntity = restClient.get()
                 .uri(uriBuilder -> uriBuilder
                         .path(API_PATH)
                         .queryParam("FID_COND_MRKT_DIV_CODE", MARKET_DIV_CODE)
@@ -60,17 +75,18 @@ public class KisDailyPriceClient {
                 .header("appsecret", kisProperties.getAppSecret())
                 .header("tr_id", TR_ID)
                 .retrieve()
-                .body(KisDailyPriceResponse.class);
+                .toEntity(KisDailyPriceResponse.class);
+
+        KisDailyPriceResponse response = responseEntity.getBody();
 
         if (response == null) {
             throw new IllegalArgumentException("KIS 일봉 조회 응답이 없습니다.");
         }
 
-        if (!"0".equals(response.getRtCd())) {
-            throw new KisApiException(response.getMsgCd(), response.getMsg());
-        }
-
-        return response.toDailyPrices();
+        return new KisDailyPriceResponseMetadata(
+                responseEntity.getStatusCode().value(),
+                response.getRtCd(), response.getMsgCd(), response.getMsg(),
+                response.toDailyPrices());
     }
 
     private void validateRequest(

@@ -11,6 +11,11 @@ public record KisDailyPriceProbeResult(
         LocalDate requestedStartDate,
         LocalDate requestedEndDate,
         OffsetDateTime requestedAt,
+        int httpStatus,
+        String returnCode,
+        String messageCode,
+        String message,
+        KisDailyPriceProbeClassification classification,
         KisDailyPrice row,
         KisDailyPriceProbeAnalysis analysis
 ) {

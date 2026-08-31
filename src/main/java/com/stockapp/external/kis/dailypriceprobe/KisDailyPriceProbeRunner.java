@@ -1,6 +1,7 @@
 package com.stockapp.external.kis.dailypriceprobe;
 
 import com.stockapp.external.kis.KisDailyPriceClient;
+import com.stockapp.external.kis.KisDailyPriceResponseMetadata;
 import com.stockapp.external.kis.KisApiException;
 import com.stockapp.external.kis.dto.KisDailyPrice;
 import lombok.RequiredArgsConstructor;
@@ -35,9 +36,9 @@ public class KisDailyPriceProbeRunner implements ApplicationRunner {
         KisDailyPriceProbeRequest request = properties.resolvedRequest(clock);
         OffsetDateTime requestedAt = OffsetDateTime.now(clock.withZone(KOREA_ZONE));
 
-        List<KisDailyPrice> response;
+        KisDailyPriceResponseMetadata metadata;
         try {
-            response = dailyPriceClient.getDailyPrices(
+            metadata = dailyPriceClient.getDailyPricesWithMetadata(
                     stockCode, request.startDate(), request.endDate());
         } catch (KisApiException exception) {
             log.error("KIS daily price probe business error - msgCd: {}, msg1: {}",
@@ -48,6 +49,7 @@ public class KisDailyPriceProbeRunner implements ApplicationRunner {
                     exception.getStatusCode().value(), exception.getMessage());
             throw exception;
         }
+        List<KisDailyPrice> response = metadata.rows();
         KisDailyPrice row = request.singleDateMode()
                 ? response.stream()
                         .filter(price -> request.targetDate().equals(price.getTradeDate()))
@@ -63,10 +65,26 @@ public class KisDailyPriceProbeRunner implements ApplicationRunner {
                 request.startDate(),
                 request.endDate(),
                 requestedAt,
+                metadata.httpStatus(),
+                metadata.returnCode(),
+                metadata.messageCode(),
+                metadata.message(),
+                classify(metadata),
                 row,
                 analysis);
         logResult(result);
         return result;
+    }
+
+    private KisDailyPriceProbeClassification classify(
+            KisDailyPriceResponseMetadata metadata
+    ) {
+        if (!"0".equals(metadata.returnCode())) {
+            return KisDailyPriceProbeClassification.KIS_BUSINESS_ERROR;
+        }
+        return metadata.rows().isEmpty()
+                ? KisDailyPriceProbeClassification.NORMAL_EMPTY
+                : KisDailyPriceProbeClassification.NORMAL_WITH_DATA;
     }
 
     private void logResult(KisDailyPriceProbeResult result) {
@@ -91,6 +109,8 @@ public class KisDailyPriceProbeRunner implements ApplicationRunner {
         log.info("[KIS DAILY PRICE RANGE PROBE]"
                         + "\n\nstockCode={}\nrequestedStartDate={}\nrequestedEndDate={}"
                         + "\nrequestedAt={}\n\nresponseRowCount={}"
+                        + "\nhttpStatus={}\nrtCd={}\nmsgCd={}\nmsg1={}"
+                        + "\nclassification={}"
                         + "\nearliestResponseDate={}\nlatestResponseDate={}"
                         + "\nresponseOrder={}\nduplicateDateCount={}"
                         + "\noutOfRangeDateCount={}\nlimitReached={}"
@@ -99,7 +119,9 @@ public class KisDailyPriceProbeRunner implements ApplicationRunner {
                         + "\nfirstResponseDates={}\nlastResponseDates={}",
                 result.stockCode(), result.requestedStartDate(),
                 result.requestedEndDate(), result.requestedAt(),
-                analysis.responseRowCount(), analysis.earliestResponseDate(),
+                analysis.responseRowCount(), result.httpStatus(),
+                result.returnCode(), result.messageCode(), result.message(),
+                result.classification(), analysis.earliestResponseDate(),
                 analysis.latestResponseDate(), analysis.responseOrder(),
                 analysis.duplicateDateCount(), analysis.outOfRangeDateCount(),
                 analysis.limitReached(), analysis.exactStartDatePresent(),
