@@ -84,4 +84,77 @@ public class Stock {
         this.stockName = stockName;
         this.marketType = marketType;
     }
+
+    public static Stock createFromMaster(
+            String stockCode,
+            String stockName,
+            MarketType marketType
+    ) {
+        if (stockCode == null || stockCode.isBlank()
+                || stockName == null || stockName.isBlank()
+                || marketType == null) {
+            throw new IllegalArgumentException("Master stock identity is required");
+        }
+        return Stock.builder()
+                .stockCode(stockCode)
+                .stockName(stockName)
+                .marketType(marketType)
+                .build();
+    }
+
+    public void applyMasterState(
+            String stockName,
+            MarketType marketType,
+            String standardCode,
+            InstrumentType instrumentType,
+            String securityGroupCode,
+            String preferredStockCode,
+            String etpProductCode,
+            LocalDate listingDate,
+            boolean spac,
+            boolean suspended,
+            boolean liquidationTrading,
+            boolean managedIssue,
+            Instant observedAt,
+            KisMasterSyncExecution execution
+    ) {
+        if (stockName == null || stockName.isBlank() || marketType == null
+                || standardCode == null || standardCode.isBlank()
+                || instrumentType == null || observedAt == null || execution == null) {
+            throw new IllegalArgumentException("Complete Master state is required");
+        }
+        this.stockName = stockName;
+        this.marketType = marketType;
+        this.standardCode = standardCode;
+        this.instrumentType = instrumentType;
+        this.securityGroupCode = securityGroupCode;
+        this.preferredStockCode = preferredStockCode;
+        this.etpProductCode = etpProductCode;
+        this.listingDate = listingDate;
+        this.spac = spac;
+        this.suspended = suspended;
+        this.liquidationTrading = liquidationTrading;
+        this.managedIssue = managedIssue;
+        this.presentInLatestMaster = true;
+        this.masterObservedAt = observedAt;
+        this.masterSyncExecution = execution;
+    }
+
+    public void observeMissingFromMaster(
+            Instant observedAt,
+            KisMasterSyncExecution execution
+    ) {
+        if (observedAt == null || execution == null) {
+            throw new IllegalArgumentException("Master observation is required");
+        }
+        this.presentInLatestMaster = false;
+        this.masterObservedAt = observedAt;
+        this.masterSyncExecution = execution;
+    }
+
+    public boolean hasMasterBaseline() {
+        return presentInLatestMaster != null
+                || instrumentType != null
+                || masterObservedAt != null;
+    }
 }
