@@ -5,7 +5,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.web.client.RestClient;
 
+import java.time.Clock;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -20,6 +23,11 @@ class KisMasterLiveSmokeTest {
                 new KisMasterParserRouter(List.of(
                         new KisKospiMasterParser(),
                         new KisKosdaqMasterParser())));
+        KisMasterSnapshotFactory snapshotFactory = new KisMasterSnapshotFactory(
+                new KisMasterInstrumentClassifier(),
+                new KisMasterInstrumentPolicy(),
+                new KisMasterSnapshotValidator(),
+                Clock.systemUTC());
 
         for (MarketType market : List.of(MarketType.KOSPI, MarketType.KOSDAQ)) {
             KisMasterParseResult result = client.downloadAndParse(market);
@@ -33,12 +41,23 @@ class KisMasterLiveSmokeTest {
             assertThat(result.summary().duplicateShortCodeCount()).isZero();
             assertThat(result.summary().blankCodeCount()).isZero();
             assertThat(result.summary().invalidRowCount()).isZero();
+            KisMasterSnapshot snapshot = snapshotFactory.create(market, result);
+            assertThat(snapshot.publishable()).isTrue();
+            Map<InstrumentType, Integer> distribution = new EnumMap<>(InstrumentType.class);
+            for (KisMasterNormalizedRecord record : snapshot.records()) {
+                distribution.merge(record.instrumentType(), 1, Integer::sum);
+            }
             System.out.printf(
-                    "%s rows=%d duplicates=%d invalid=%d%n",
+                    "%s total=%d supported=%d unsupported=%d duplicates=%d invalid=%d "
+                            + "types=%s unknownGroups=%s%n",
                     market,
                     result.summary().parsedRowCount(),
+                    snapshot.supportedInstrumentCount(),
+                    snapshot.unsupportedInstrumentCount(),
                     result.summary().duplicateShortCodeCount(),
-                    result.summary().invalidRowCount());
+                    result.summary().invalidRowCount(),
+                    distribution,
+                    snapshot.validation().unknownSecurityGroupCodes());
         }
     }
 }
