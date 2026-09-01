@@ -27,10 +27,7 @@ import java.util.Map;
 public class DailyPriceFinalizationBatchService {
 
     private static final String RATE_LIMIT_CODE = "EGW00201";
-    private static final List<MarketType> TARGET_MARKETS =
-            List.of(MarketType.KOSPI, MarketType.KOSDAQ);
-
-    private final StockRepository stockRepository;
+    private final OperationalStockUniverseService stockUniverseService;
     private final DailyPriceFinalizationService finalizationService;
     private final DailyPriceCompletenessEvaluator completenessEvaluator;
     private final KisProperties kisProperties;
@@ -57,8 +54,7 @@ public class DailyPriceFinalizationBatchService {
         }
         validateConfiguration();
 
-        List<Stock> stocks = stockRepository.findByMarketTypeInOrderByIdAsc(
-                TARGET_MARKETS);
+        List<Stock> stocks = stockUniverseService.findHistoryTargets();
         BatchSummary summary = new BatchSummary(
                 targetTradeDate, stocks, Instant.now(clock));
         log.info("일봉 Finalization batch 시작 - targetTradeDate: {}, target: {}",

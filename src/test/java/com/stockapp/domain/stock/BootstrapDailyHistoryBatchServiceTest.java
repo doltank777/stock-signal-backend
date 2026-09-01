@@ -42,7 +42,7 @@ class BootstrapDailyHistoryBatchServiceTest {
     @Mock OperationalScreeningEvaluationDateResolver evaluationDateResolver;
     @Mock OperationalDailyHistoryRequirementAnalyzer requirementAnalyzer;
     @Mock KrxTradingCalendar tradingCalendar;
-    @Mock StockRepository stockRepository;
+    @Mock OperationalStockUniverseService stockUniverseService;
     @Mock BootstrapMissingHistoryFetchFillService fetchFillService;
 
     private BootstrapDailyHistoryBatchService service;
@@ -56,7 +56,7 @@ class BootstrapDailyHistoryBatchServiceTest {
                 evaluationDateResolver,
                 requirementAnalyzer,
                 tradingCalendar,
-                stockRepository,
+                stockUniverseService,
                 fetchFillService);
         first = stock(1L, "005930", MarketType.KOSPI);
         second = stock(2L, "000660", MarketType.KOSPI);
@@ -194,13 +194,38 @@ class BootstrapDailyHistoryBatchServiceTest {
     }
 
     @Test
+    void processesOnlyHistoryUniverseIncludingSuspendedAndLiquidationStocks() {
+        Stock suspended = historyStock(
+                4L, "000004", true, false);
+        Stock liquidation = historyStock(
+                5L, "000005", false, true);
+        Stock masterMissing = stock(6L, "000006", MarketType.KOSPI);
+        prepare(2, List.of(suspended, liquidation));
+        when(fetchFillService.fetchAndFill(suspended, REQUIRED_DATES))
+                .thenReturn(completed(suspended));
+        when(fetchFillService.fetchAndFill(liquidation, REQUIRED_DATES))
+                .thenReturn(completed(liquidation));
+
+        BootstrapDailyHistoryBatchResult result = service.bootstrap();
+
+        assertThat(result.targetStockCount()).isEqualTo(2);
+        assertThat(result.completedStockCount()).isEqualTo(2);
+        assertThat(result.totalRemainingMissingCount()).isZero();
+        assertThat(result.ready()).isTrue();
+        InOrder order = inOrder(fetchFillService);
+        order.verify(fetchFillService).fetchAndFill(suspended, REQUIRED_DATES);
+        order.verify(fetchFillService).fetchAndFill(liquidation, REQUIRED_DATES);
+        verify(fetchFillService, never()).fetchAndFill(
+                masterMissing, REQUIRED_DATES);
+    }
+
+    @Test
     void zeroPreviousRequirementCompletesUniverseWithoutCalendarOrFetch() {
         when(evaluationDateResolver.resolve()).thenReturn(
                 OperationalScreeningReadinessResult.ready(
                         TODAY, EVALUATION_DATE));
         when(requirementAnalyzer.analyze()).thenReturn(requirement(0));
-        when(stockRepository.findByMarketTypeInOrderByIdAsc(
-                List.of(MarketType.KOSPI, MarketType.KOSDAQ)))
+        when(stockUniverseService.findHistoryTargets())
                 .thenReturn(List.of(first, second));
 
         BootstrapDailyHistoryBatchResult result = service.bootstrap();
@@ -220,8 +245,7 @@ class BootstrapDailyHistoryBatchServiceTest {
                 OperationalScreeningReadinessResult.ready(
                         TODAY, EVALUATION_DATE));
         when(requirementAnalyzer.analyze()).thenReturn(requirement(2));
-        when(stockRepository.findByMarketTypeInOrderByIdAsc(
-                List.of(MarketType.KOSPI, MarketType.KOSDAQ)))
+        when(stockUniverseService.findHistoryTargets())
                 .thenReturn(List.of());
 
         assertThatExceptionOfType(IllegalStateException.class)
@@ -239,7 +263,7 @@ class BootstrapDailyHistoryBatchServiceTest {
                 .isThrownBy(service::bootstrap)
                 .withMessageContaining("evaluation date is unavailable");
         verifyNoInteractions(requirementAnalyzer, tradingCalendar,
-                stockRepository, fetchFillService);
+                stockUniverseService, fetchFillService);
     }
 
     @Test
@@ -248,8 +272,7 @@ class BootstrapDailyHistoryBatchServiceTest {
                 OperationalScreeningReadinessResult.finalizationNotReady(
                         TODAY, EVALUATION_DATE));
         when(requirementAnalyzer.analyze()).thenReturn(requirement(0));
-        when(stockRepository.findByMarketTypeInOrderByIdAsc(
-                List.of(MarketType.KOSPI, MarketType.KOSDAQ)))
+        when(stockUniverseService.findHistoryTargets())
                 .thenReturn(List.of(first));
 
         BootstrapDailyHistoryBatchResult result = service.bootstrap();
@@ -263,8 +286,7 @@ class BootstrapDailyHistoryBatchServiceTest {
                 OperationalScreeningReadinessResult.ready(
                         TODAY, EVALUATION_DATE));
         when(requirementAnalyzer.analyze()).thenReturn(requirement(count));
-        when(stockRepository.findByMarketTypeInOrderByIdAsc(
-                List.of(MarketType.KOSPI, MarketType.KOSDAQ)))
+        when(stockUniverseService.findHistoryTargets())
                 .thenReturn(stocks);
         when(tradingCalendar.previousTradingDays(EVALUATION_DATE, count))
                 .thenReturn(REQUIRED_DATES);
@@ -324,6 +346,24 @@ class BootstrapDailyHistoryBatchServiceTest {
                 .stockCode(stockCode)
                 .stockName(stockCode)
                 .marketType(marketType)
+                .build();
+    }
+
+    private Stock historyStock(
+            Long id,
+            String stockCode,
+            boolean suspended,
+            boolean liquidationTrading
+    ) {
+        return Stock.builder()
+                .id(id)
+                .stockCode(stockCode)
+                .stockName(stockCode)
+                .marketType(MarketType.KOSPI)
+                .presentInLatestMaster(true)
+                .instrumentType(InstrumentType.COMMON_STOCK)
+                .suspended(suspended)
+                .liquidationTrading(liquidationTrading)
                 .build();
     }
 }

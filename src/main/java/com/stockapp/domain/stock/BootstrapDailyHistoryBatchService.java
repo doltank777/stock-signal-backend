@@ -22,13 +22,10 @@ import java.util.List;
 @RequiredArgsConstructor
 public class BootstrapDailyHistoryBatchService {
 
-    private static final List<MarketType> TARGET_MARKETS =
-            List.of(MarketType.KOSPI, MarketType.KOSDAQ);
-
     private final OperationalScreeningEvaluationDateResolver evaluationDateResolver;
     private final OperationalDailyHistoryRequirementAnalyzer requirementAnalyzer;
     private final KrxTradingCalendar tradingCalendar;
-    private final StockRepository stockRepository;
+    private final OperationalStockUniverseService stockUniverseService;
     private final BootstrapMissingHistoryFetchFillService fetchFillService;
 
     public BootstrapDailyHistoryBatchResult bootstrap() {
@@ -49,8 +46,7 @@ public class BootstrapDailyHistoryBatchService {
     ) {
         LocalDate evaluationDate = request.evaluationDate();
         int requiredPreviousCount = request.requiredPreviousTradingDayCount();
-        List<Stock> stocks = stockRepository.findByMarketTypeInOrderByIdAsc(
-                TARGET_MARKETS);
+        List<Stock> stocks = stockUniverseService.findHistoryTargets();
         if (stocks.isEmpty()) {
             throw new IllegalStateException(
                     "bootstrap target universe became empty");

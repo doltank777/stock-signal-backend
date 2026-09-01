@@ -9,6 +9,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InOrder;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
@@ -34,7 +35,7 @@ class DailyPriceFinalizationBatchServiceTest {
     private static final Instant STARTED_AT = Instant.parse("2026-08-20T07:20:00Z");
     private static final Instant FINISHED_AT = Instant.parse("2026-08-20T08:10:00Z");
 
-    @Mock StockRepository stockRepository;
+    @Mock OperationalStockUniverseService stockUniverseService;
     @Mock DailyPriceFinalizationService finalizationService;
     @Mock DailyPriceCompletenessEvaluator completenessEvaluator;
     @Mock DailyPriceLoadSleeper sleeper;
@@ -54,7 +55,7 @@ class DailyPriceFinalizationBatchServiceTest {
         properties.getDailyPrice().getUpdate().getRetry().setInitialBackoffMs(0);
         runGuard = new DailyPriceFinalizationRunGuard();
         service = new DailyPriceFinalizationBatchService(
-                stockRepository, finalizationService, completenessEvaluator,
+                stockUniverseService, finalizationService, completenessEvaluator,
                 properties, sleeper, clock, runGuard);
         a = stock(1L, "000001", MarketType.KOSPI);
         b = stock(2L, "000002", MarketType.KOSDAQ);
@@ -201,10 +202,9 @@ class DailyPriceFinalizationBatchServiceTest {
     }
 
     @Test
-    void targetsOnlyKospiAndKosdaqUsingExistingIdOrderQuery() {
+    void usesHistoryUniverseTargets() {
         when(clock.instant()).thenReturn(STARTED_AT, FINISHED_AT);
-        when(stockRepository.findByMarketTypeInOrderByIdAsc(
-                List.of(MarketType.KOSPI, MarketType.KOSDAQ)))
+        when(stockUniverseService.findHistoryTargets())
                 .thenReturn(List.of());
         when(completenessEvaluator.evaluate(
                 org.mockito.ArgumentMatchers.any()))
@@ -212,14 +212,43 @@ class DailyPriceFinalizationBatchServiceTest {
 
         service.finalizeAll(TARGET_DATE);
 
-        verify(stockRepository).findByMarketTypeInOrderByIdAsc(
-                List.of(MarketType.KOSPI, MarketType.KOSDAQ));
+        verify(stockUniverseService).findHistoryTargets();
+    }
+
+    @Test
+    void completenessUsesTheSameHistoryUniverseSnapshotAsTheBatch() {
+        Stock suspended = historyStock(4L, "000004", true, false);
+        Stock liquidation = historyStock(5L, "000005", false, true);
+        when(clock.instant()).thenReturn(STARTED_AT, FINISHED_AT);
+        when(stockUniverseService.findHistoryTargets())
+                .thenReturn(List.of(suspended, liquidation));
+        when(finalizationService.finalizeStock(suspended, TARGET_DATE))
+                .thenReturn(result(
+                        suspended, DailyPriceFinalizationStatus.UNCHANGED));
+        when(finalizationService.finalizeStock(liquidation, TARGET_DATE))
+                .thenReturn(result(
+                        liquidation, DailyPriceFinalizationStatus.UNCHANGED));
+        when(completenessEvaluator.evaluate(
+                org.mockito.ArgumentMatchers.any()))
+                .thenReturn(completeness(true));
+
+        DailyPriceFinalizationExecutionResult execution =
+                service.finalizeAll(TARGET_DATE);
+
+        ArgumentCaptor<DailyPriceFinalizationBatchResult> captor =
+                ArgumentCaptor.forClass(DailyPriceFinalizationBatchResult.class);
+        verify(completenessEvaluator).evaluate(captor.capture());
+        assertThat(captor.getValue()).isSameAs(execution.batch());
+        assertThat(captor.getValue().targetStocks())
+                .extracting(target -> target.stockCode())
+                .containsExactly("000004", "000005");
+        assertThat(captor.getValue().targetStockCount()).isEqualTo(2);
+        assertThat(execution.completeness().ready()).isTrue();
     }
 
     private void prepareStocks() {
         when(clock.instant()).thenReturn(STARTED_AT, FINISHED_AT);
-        when(stockRepository.findByMarketTypeInOrderByIdAsc(
-                List.of(MarketType.KOSPI, MarketType.KOSDAQ)))
+        when(stockUniverseService.findHistoryTargets())
                 .thenReturn(List.of(a, b, c));
     }
 
@@ -240,5 +269,20 @@ class DailyPriceFinalizationBatchServiceTest {
     private Stock stock(long id, String code, MarketType marketType) {
         return Stock.builder().id(id).stockCode(code).stockName(code)
                 .marketType(marketType).build();
+    }
+
+    private Stock historyStock(
+            long id,
+            String code,
+            boolean suspended,
+            boolean liquidationTrading
+    ) {
+        return Stock.builder().id(id).stockCode(code).stockName(code)
+                .marketType(MarketType.KOSPI)
+                .presentInLatestMaster(true)
+                .instrumentType(InstrumentType.COMMON_STOCK)
+                .suspended(suspended)
+                .liquidationTrading(liquidationTrading)
+                .build();
     }
 }
