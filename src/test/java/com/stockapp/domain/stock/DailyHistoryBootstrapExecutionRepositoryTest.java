@@ -4,6 +4,7 @@ import com.stockapp.domain.stock.dto.BootstrapDailyHistoryBatchResult;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -13,6 +14,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @DataJpaTest
 class DailyHistoryBootstrapExecutionRepositoryTest {
+    private static final String FINGERPRINT = "a".repeat(64);
+    private static final String POLICY_VERSION = "HISTORY_V1";
 
     private static final LocalDate DATE = LocalDate.of(2026, 8, 24);
 
@@ -50,13 +53,29 @@ class DailyHistoryBootstrapExecutionRepositoryTest {
                 DATE.minusDays(1));
 
         assertThat(repository
-                .findFirstByEvaluationDateAndReadyTrueAndRequiredPreviousTradingDayCountGreaterThanEqualOrderByFinishedAtDescIdDesc(
-                        DATE, 120))
+                .findFirstByEvaluationDateAndReadyTrueAndRequiredPreviousTradingDayCountGreaterThanEqualAndTargetUniverseFingerprintAndTargetUniversePolicyVersionOrderByFinishedAtDescIdDesc(
+                        DATE, 120, FINGERPRINT, POLICY_VERSION))
                 .get().extracting(DailyHistoryBootstrapExecution::getId)
                 .isEqualTo(matching.getId());
         assertThat(repository
-                .findFirstByEvaluationDateAndReadyTrueAndRequiredPreviousTradingDayCountGreaterThanEqualOrderByFinishedAtDescIdDesc(
-                        DATE, 151))
+                .findFirstByEvaluationDateAndReadyTrueAndRequiredPreviousTradingDayCountGreaterThanEqualAndTargetUniverseFingerprintAndTargetUniversePolicyVersionOrderByFinishedAtDescIdDesc(
+                        DATE, 151, FINGERPRINT, POLICY_VERSION))
+                .isEmpty();
+    }
+
+    @Test
+    void doesNotReuseLegacyReadyExecutionWithoutUniverseMetadata() {
+        DailyHistoryBootstrapExecution legacy = saveCompleted(
+                120, true, Instant.parse("2026-08-24T02:00:00Z"));
+        ReflectionTestUtils.setField(
+                legacy, "targetUniverseFingerprint", null);
+        ReflectionTestUtils.setField(
+                legacy, "targetUniversePolicyVersion", null);
+        repository.saveAndFlush(legacy);
+
+        assertThat(repository
+                .findFirstByEvaluationDateAndReadyTrueAndRequiredPreviousTradingDayCountGreaterThanEqualAndTargetUniverseFingerprintAndTargetUniversePolicyVersionOrderByFinishedAtDescIdDesc(
+                        DATE, 120, FINGERPRINT, POLICY_VERSION))
                 .isEmpty();
     }
 
@@ -70,7 +89,8 @@ class DailyHistoryBootstrapExecutionRepositoryTest {
     ) {
         DailyHistoryBootstrapExecution execution =
                 DailyHistoryBootstrapExecution.create(
-                        DATE, requirement, finishedAt.minusSeconds(60));
+                        DATE, requirement, FINGERPRINT, POLICY_VERSION,
+                        finishedAt.minusSeconds(60));
         execution.fail("IllegalStateException: failed", finishedAt);
         return repository.saveAndFlush(execution);
     }
@@ -81,7 +101,8 @@ class DailyHistoryBootstrapExecutionRepositoryTest {
     ) {
         DailyHistoryBootstrapExecution execution =
                 DailyHistoryBootstrapExecution.create(
-                        evaluationDate, requirement, finishedAt.minusSeconds(60));
+                        evaluationDate, requirement, FINGERPRINT, POLICY_VERSION,
+                        finishedAt.minusSeconds(60));
         execution.complete(result(evaluationDate, requirement, ready), finishedAt);
         return repository.saveAndFlush(execution);
     }

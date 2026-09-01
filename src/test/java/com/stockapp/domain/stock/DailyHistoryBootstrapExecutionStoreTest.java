@@ -15,6 +15,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class DailyHistoryBootstrapExecutionStoreTest {
+    private static final String FINGERPRINT = "a".repeat(64);
+    private static final String POLICY_VERSION = "HISTORY_V1";
 
     private static final LocalDate DATE = LocalDate.of(2026, 8, 24);
     private static final Instant STARTED = Instant.parse("2026-08-24T00:00:00Z");
@@ -31,7 +33,8 @@ class DailyHistoryBootstrapExecutionStoreTest {
                 org.mockito.ArgumentMatchers.any()))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        var snapshot = store.start(DATE, 120, STARTED);
+        var snapshot = store.start(
+                DATE, 120, FINGERPRINT, POLICY_VERSION, STARTED);
 
         ArgumentCaptor<DailyHistoryBootstrapExecution> captor =
                 ArgumentCaptor.forClass(DailyHistoryBootstrapExecution.class);
@@ -45,7 +48,8 @@ class DailyHistoryBootstrapExecutionStoreTest {
     @Test
     void completesWithExactBatchAggregatesAndBatchReadiness() {
         DailyHistoryBootstrapExecution execution =
-                DailyHistoryBootstrapExecution.create(DATE, 120, STARTED);
+                DailyHistoryBootstrapExecution.create(
+                        DATE, 120, FINGERPRINT, POLICY_VERSION, STARTED);
         when(repository.findById(1L)).thenReturn(Optional.of(execution));
         BootstrapDailyHistoryBatchResult result = result(false);
 
@@ -62,7 +66,8 @@ class DailyHistoryBootstrapExecutionStoreTest {
     @Test
     void recordsFailedExecutionWithoutMaskingItsContract() {
         DailyHistoryBootstrapExecution execution =
-                DailyHistoryBootstrapExecution.create(DATE, 0, STARTED);
+                DailyHistoryBootstrapExecution.create(
+                        DATE, 0, FINGERPRINT, POLICY_VERSION, STARTED);
         when(repository.findById(1L)).thenReturn(Optional.of(execution));
 
         var snapshot = store.fail(
@@ -78,7 +83,8 @@ class DailyHistoryBootstrapExecutionStoreTest {
     @Test
     void zeroRequirementCompletesAsReadyExecution() {
         DailyHistoryBootstrapExecution execution =
-                DailyHistoryBootstrapExecution.create(DATE, 0, STARTED);
+                DailyHistoryBootstrapExecution.create(
+                        DATE, 0, FINGERPRINT, POLICY_VERSION, STARTED);
         when(repository.findById(1L)).thenReturn(Optional.of(execution));
 
         var snapshot = store.complete(1L, result(true, 0), FINISHED);

@@ -2,6 +2,7 @@ package com.stockapp.domain.stock;
 
 import com.stockapp.domain.stock.dto.BootstrapDailyHistoryBatchResult;
 import com.stockapp.domain.stock.dto.BootstrapDailyHistoryRequest;
+import com.stockapp.domain.stock.dto.BootstrapDailyHistoryPlan;
 import com.stockapp.domain.stock.dto.BootstrapDailyHistoryStockSummary;
 import com.stockapp.domain.stock.dto.BootstrapMissingHistoryFetchFillFailure;
 import com.stockapp.domain.stock.dto.DailyHistoryBootstrapExecutionSnapshot;
@@ -27,6 +28,15 @@ class DailyHistoryBootstrapRunnerTest {
     private static final Instant NOW = Instant.parse("2026-08-24T00:00:00Z");
     private static final BootstrapDailyHistoryRequest REQUEST =
             new BootstrapDailyHistoryRequest(EVALUATION_DATE, 120);
+    private static final String FINGERPRINT = "a".repeat(64);
+    private static final String POLICY_VERSION = "HISTORY_V1";
+    private static final BootstrapDailyHistoryPlan PLAN =
+            new BootstrapDailyHistoryPlan(
+                    REQUEST,
+                    List.of(Stock.builder().id(1L).stockCode("005930")
+                            .stockName("Samsung").marketType(MarketType.KOSPI)
+                            .build()),
+                    FINGERPRINT, POLICY_VERSION);
 
     private final BootstrapDailyHistoryBatchService batchService =
             mock(BootstrapDailyHistoryBatchService.class);
@@ -64,7 +74,7 @@ class DailyHistoryBootstrapRunnerTest {
         IllegalStateException failure =
                 new IllegalStateException("calendar unavailable");
         arrangeStart();
-        when(batchService.bootstrap(REQUEST)).thenThrow(failure);
+        when(batchService.bootstrap(PLAN)).thenThrow(failure);
 
         assertThatExceptionOfType(IllegalStateException.class)
                 .isThrownBy(runner::execute)
@@ -76,7 +86,7 @@ class DailyHistoryBootstrapRunnerTest {
     void persistenceFailurePreventsSuccessfulCompletion() {
         BootstrapDailyHistoryBatchResult result = result(true);
         arrangeStart();
-        when(batchService.bootstrap(REQUEST)).thenReturn(result);
+        when(batchService.bootstrap(PLAN)).thenReturn(result);
         IllegalStateException failure =
                 new IllegalStateException("execution update failed");
         when(executionStore.complete(1L, result, NOW)).thenThrow(failure);
@@ -89,12 +99,13 @@ class DailyHistoryBootstrapRunnerTest {
 
     private void arrangeExecution(BootstrapDailyHistoryBatchResult result) {
         arrangeStart();
-        when(batchService.bootstrap(REQUEST)).thenReturn(result);
+        when(batchService.bootstrap(PLAN)).thenReturn(result);
     }
 
     private void arrangeStart() {
-        when(batchService.resolveRequest()).thenReturn(REQUEST);
-        when(executionStore.start(EVALUATION_DATE, 120, NOW))
+        when(batchService.resolvePlan()).thenReturn(PLAN);
+        when(executionStore.start(
+                EVALUATION_DATE, 120, FINGERPRINT, POLICY_VERSION, NOW))
                 .thenReturn(executionSnapshot());
     }
 
@@ -102,7 +113,8 @@ class DailyHistoryBootstrapRunnerTest {
         return new DailyHistoryBootstrapExecutionSnapshot(
                 1L, EVALUATION_DATE,
                 DailyHistoryBootstrapExecutionStatus.RUNNING, false,
-                120, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                120, FINGERPRINT, POLICY_VERSION,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                 NOW, null, null);
     }
 

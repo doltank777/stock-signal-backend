@@ -41,6 +41,10 @@ public class DailyHistoryBootstrapExecution {
 
     @Column(name = "required_previous_trading_day_count", nullable = false)
     private int requiredPreviousTradingDayCount;
+    @Column(name = "target_universe_fingerprint", length = 64)
+    private String targetUniverseFingerprint;
+    @Column(name = "target_universe_policy_version", length = 30)
+    private String targetUniversePolicyVersion;
     @Column(name = "required_trading_date_count", nullable = false)
     private int requiredTradingDateCount;
     @Column(name = "target_stock_count", nullable = false)
@@ -82,6 +86,8 @@ public class DailyHistoryBootstrapExecution {
     public static DailyHistoryBootstrapExecution create(
             LocalDate evaluationDate,
             int requiredPreviousTradingDayCount,
+            String targetUniverseFingerprint,
+            String targetUniversePolicyVersion,
             Instant now
     ) {
         if (requiredPreviousTradingDayCount < 0) {
@@ -93,9 +99,20 @@ public class DailyHistoryBootstrapExecution {
         execution.evaluationDate = evaluationDate;
         execution.requiredPreviousTradingDayCount =
                 requiredPreviousTradingDayCount;
+        execution.targetUniverseFingerprint = requireMetadata(
+                targetUniverseFingerprint, "targetUniverseFingerprint");
+        execution.targetUniversePolicyVersion = requireMetadata(
+                targetUniversePolicyVersion, "targetUniversePolicyVersion");
         execution.status = DailyHistoryBootstrapExecutionStatus.RUNNING;
         execution.startedAt = now;
         return execution;
+    }
+
+    private static String requireMetadata(String value, String name) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException(name + " is required");
+        }
+        return value;
     }
 
     public void complete(BootstrapDailyHistoryBatchResult result, Instant now) {

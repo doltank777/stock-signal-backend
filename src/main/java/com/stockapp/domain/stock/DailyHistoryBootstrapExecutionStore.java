@@ -22,11 +22,15 @@ public class DailyHistoryBootstrapExecutionStore {
     public DailyHistoryBootstrapExecutionSnapshot start(
             LocalDate evaluationDate,
             int requiredPreviousTradingDayCount,
+            String targetUniverseFingerprint,
+            String targetUniversePolicyVersion,
             Instant now
     ) {
         DailyHistoryBootstrapExecution execution = repository.saveAndFlush(
                 DailyHistoryBootstrapExecution.create(
-                        evaluationDate, requiredPreviousTradingDayCount, now));
+                        evaluationDate, requiredPreviousTradingDayCount,
+                        targetUniverseFingerprint, targetUniversePolicyVersion,
+                        now));
         return DailyHistoryBootstrapExecutionSnapshot.from(execution);
     }
 
@@ -65,11 +69,14 @@ public class DailyHistoryBootstrapExecutionStore {
     @Transactional(readOnly = true)
     public Optional<DailyHistoryBootstrapExecutionSnapshot> findLatestReady(
             LocalDate evaluationDate,
-            int requiredPreviousTradingDayCount
+            int requiredPreviousTradingDayCount,
+            String targetUniverseFingerprint,
+            String targetUniversePolicyVersion
     ) {
         return repository
-                .findFirstByEvaluationDateAndReadyTrueAndRequiredPreviousTradingDayCountGreaterThanEqualOrderByFinishedAtDescIdDesc(
-                        evaluationDate, requiredPreviousTradingDayCount)
+                .findFirstByEvaluationDateAndReadyTrueAndRequiredPreviousTradingDayCountGreaterThanEqualAndTargetUniverseFingerprintAndTargetUniversePolicyVersionOrderByFinishedAtDescIdDesc(
+                        evaluationDate, requiredPreviousTradingDayCount,
+                        targetUniverseFingerprint, targetUniversePolicyVersion)
                 .map(DailyHistoryBootstrapExecutionSnapshot::from);
     }
 

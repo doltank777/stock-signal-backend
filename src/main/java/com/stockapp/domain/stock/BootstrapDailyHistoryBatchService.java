@@ -6,6 +6,7 @@ import com.stockapp.domain.screening.OperationalScreeningReadinessStatus;
 import com.stockapp.domain.screening.metric.OperationalDailyHistoryRequirement;
 import com.stockapp.domain.screening.metric.OperationalDailyHistoryRequirementAnalyzer;
 import com.stockapp.domain.stock.dto.BootstrapDailyHistoryBatchResult;
+import com.stockapp.domain.stock.dto.BootstrapDailyHistoryPlan;
 import com.stockapp.domain.stock.dto.BootstrapDailyHistoryRequest;
 import com.stockapp.domain.stock.dto.BootstrapDailyHistoryStockSummary;
 import com.stockapp.domain.stock.dto.BootstrapMissingHistoryFetchFillResult;
@@ -26,10 +27,23 @@ public class BootstrapDailyHistoryBatchService {
     private final OperationalDailyHistoryRequirementAnalyzer requirementAnalyzer;
     private final KrxTradingCalendar tradingCalendar;
     private final OperationalStockUniverseService stockUniverseService;
+    private final OperationalStockUniverseFingerprint universeFingerprint;
     private final BootstrapMissingHistoryFetchFillService fetchFillService;
 
     public BootstrapDailyHistoryBatchResult bootstrap() {
-        return bootstrap(resolveRequest());
+        return bootstrap(resolvePlan());
+    }
+
+    public BootstrapDailyHistoryPlan resolvePlan() {
+        BootstrapDailyHistoryRequest request = resolveRequest();
+        List<Stock> stocks = stockUniverseService.findHistoryTargets();
+        if (stocks.isEmpty()) {
+            throw new IllegalStateException(
+                    "bootstrap target universe became empty");
+        }
+        return new BootstrapDailyHistoryPlan(
+                request, stocks, universeFingerprint.calculate(stocks),
+                OperationalStockUniverseFingerprint.HISTORY_POLICY_VERSION);
     }
 
     public BootstrapDailyHistoryRequest resolveRequest() {
@@ -44,13 +58,23 @@ public class BootstrapDailyHistoryBatchService {
     public BootstrapDailyHistoryBatchResult bootstrap(
             BootstrapDailyHistoryRequest request
     ) {
-        LocalDate evaluationDate = request.evaluationDate();
-        int requiredPreviousCount = request.requiredPreviousTradingDayCount();
         List<Stock> stocks = stockUniverseService.findHistoryTargets();
         if (stocks.isEmpty()) {
             throw new IllegalStateException(
                     "bootstrap target universe became empty");
         }
+        return bootstrap(new BootstrapDailyHistoryPlan(
+                request, stocks, universeFingerprint.calculate(stocks),
+                OperationalStockUniverseFingerprint.HISTORY_POLICY_VERSION));
+    }
+
+    public BootstrapDailyHistoryBatchResult bootstrap(
+            BootstrapDailyHistoryPlan plan
+    ) {
+        BootstrapDailyHistoryRequest request = plan.request();
+        LocalDate evaluationDate = request.evaluationDate();
+        int requiredPreviousCount = request.requiredPreviousTradingDayCount();
+        List<Stock> stocks = plan.targets();
 
         if (requiredPreviousCount == 0) {
             return Summary.withNoRequiredHistory(

@@ -17,7 +17,9 @@ public interface DailyHistoryBootstrapExecutionRepository
             LocalDate evaluationDate);
 
     Optional<DailyHistoryBootstrapExecution>
-    findFirstByEvaluationDateAndReadyTrueAndRequiredPreviousTradingDayCountGreaterThanEqualOrderByFinishedAtDescIdDesc(
+    findFirstByEvaluationDateAndReadyTrueAndRequiredPreviousTradingDayCountGreaterThanEqualAndTargetUniverseFingerprintAndTargetUniversePolicyVersionOrderByFinishedAtDescIdDesc(
             LocalDate evaluationDate,
-            int requiredPreviousTradingDayCount);
+            int requiredPreviousTradingDayCount,
+            String targetUniverseFingerprint,
+            String targetUniversePolicyVersion);
 }

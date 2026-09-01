@@ -43,6 +43,8 @@ class BootstrapDailyHistoryBatchServiceTest {
     @Mock OperationalDailyHistoryRequirementAnalyzer requirementAnalyzer;
     @Mock KrxTradingCalendar tradingCalendar;
     @Mock OperationalStockUniverseService stockUniverseService;
+    private final OperationalStockUniverseFingerprint universeFingerprint =
+            new OperationalStockUniverseFingerprint();
     @Mock BootstrapMissingHistoryFetchFillService fetchFillService;
 
     private BootstrapDailyHistoryBatchService service;
@@ -57,6 +59,7 @@ class BootstrapDailyHistoryBatchServiceTest {
                 requirementAnalyzer,
                 tradingCalendar,
                 stockUniverseService,
+                universeFingerprint,
                 fetchFillService);
         first = stock(1L, "005930", MarketType.KOSPI);
         second = stock(2L, "000660", MarketType.KOSPI);

@@ -1,6 +1,7 @@
 package com.stockapp.domain.stock;
 
 import com.stockapp.domain.stock.dto.BootstrapDailyHistoryBatchResult;
+import com.stockapp.domain.stock.dto.BootstrapDailyHistoryPlan;
 import com.stockapp.domain.stock.dto.BootstrapDailyHistoryRequest;
 import com.stockapp.domain.stock.dto.BootstrapDailyHistoryStockSummary;
 import com.stockapp.domain.stock.dto.DailyHistoryBootstrapExecutionSnapshot;
@@ -30,15 +31,18 @@ public class DailyHistoryBootstrapRunner implements ApplicationRunner {
     }
 
     BootstrapDailyHistoryBatchResult execute() {
-        BootstrapDailyHistoryRequest request = batchService.resolveRequest();
+        BootstrapDailyHistoryPlan plan = batchService.resolvePlan();
+        BootstrapDailyHistoryRequest request = plan.request();
         DailyHistoryBootstrapExecutionSnapshot execution =
                 executionStore.start(
                         request.evaluationDate(),
                         request.requiredPreviousTradingDayCount(),
+                        plan.universeFingerprint(),
+                        plan.universePolicyVersion(),
                         clock.instant());
         BootstrapDailyHistoryBatchResult result;
         try {
-            result = batchService.bootstrap(request);
+            result = batchService.bootstrap(plan);
             executionStore.complete(execution.id(), result, clock.instant());
         } catch (RuntimeException | Error error) {
             persistFailure(execution.id(), error);

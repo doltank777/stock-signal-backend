@@ -372,6 +372,10 @@ CREATE TABLE daily\_history\_bootstrap\_executions (
 
     required\_previous\_trading\_day\_count INT NOT NULL,
 
+    target\_universe\_fingerprint VARCHAR(64) NULL,
+
+    target\_universe\_policy\_version VARCHAR(30) NULL,
+
     required\_trading\_date\_count INT NOT NULL,
 
     target\_stock\_count INT NOT NULL,
@@ -434,7 +438,13 @@ CREATE TABLE daily\_history\_bootstrap\_executions (
 
   date whose \`required\_previous\_trading\_day\_count\` is at least the current
 
-  requirement. Latest ordering is \`finished\_at DESC, id DESC\`.
+  requirement, with the same target universe fingerprint and policy version.
+  Latest ordering is \`finished\_at DESC, id DESC\`.
+
+\- The fingerprint is SHA-256 over sorted eligible stock codes. The policy
+  version invalidates executions when eligibility semantics change. Both columns
+  are nullable only for compatibility with existing rows; NULL means unknown
+  universe identity and is never eligible for readiness reuse.
 
 \- A zero-history requirement is still persisted as a completed ready execution.
 
