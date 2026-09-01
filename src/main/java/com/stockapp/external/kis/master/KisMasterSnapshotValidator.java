@@ -1,6 +1,7 @@
 package com.stockapp.external.kis.master;
 
 import com.stockapp.domain.stock.MarketType;
+import com.stockapp.domain.stock.InstrumentType;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;

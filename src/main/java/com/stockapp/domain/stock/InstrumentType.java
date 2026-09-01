@@ -1,4 +1,4 @@
-package com.stockapp.external.kis.master;
+package com.stockapp.domain.stock;
 
 public enum InstrumentType {
     COMMON_STOCK,

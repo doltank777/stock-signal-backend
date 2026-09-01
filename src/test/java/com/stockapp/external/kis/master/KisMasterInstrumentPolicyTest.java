@@ -1,5 +1,6 @@
 package com.stockapp.external.kis.master;
 
+import com.stockapp.domain.stock.InstrumentType;
 import org.junit.jupiter.api.Test;
 
 import java.util.EnumSet;
