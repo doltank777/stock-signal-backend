@@ -13,7 +13,7 @@ import java.time.Instant;
 
 @Component
 @RequiredArgsConstructor
-class KisMasterSyncExecutionFailureRecorder {
+public class KisMasterSyncExecutionFailureRecorder {
 
     private static final int MAX_ERROR_LENGTH = 1000;
 

@@ -1,0 +1,20 @@
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: validate
+  main:
+    web-application-type: none
+  devtools:
+    add-properties: false
+    restart:
+      enabled: false
+    livereload:
+      enabled: false
+  task:
+    scheduling:
+      enabled: false
+
+kis:
+  master:
+    reconciliation:
+      mode:

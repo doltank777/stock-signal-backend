@@ -28,7 +28,7 @@ import java.util.stream.Collectors;
 
 @Component
 @RequiredArgsConstructor
-class KisMasterReconciliationPublisher {
+public class KisMasterReconciliationPublisher {
 
     private static final List<MarketType> TARGET_MARKETS =
             List.of(MarketType.KOSPI, MarketType.KOSDAQ);
